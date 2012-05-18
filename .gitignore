@@ -1,0 +1,10 @@
+/dev/
+.*swp
+.*swo
+.*~
+.directory
+pkg/
+.yardoc/
+doc/
+pkg/
+tags
