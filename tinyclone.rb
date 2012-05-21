@@ -1,11 +1,17 @@
-%w(rubygems sinatra haml dm-core dm-timestamps dm-types uri restclient xmlsimple dirty_words).each  { |lib| require lib}
+# Install missing gems
+
+# NOTE: Typo in original code: restclient instead of rest-client
+# NOTE: gem install xmlsimple, BUT require 'xmlsimple' (no hyphen)
+# NOTE: Need to add dm-migrations to the list of required gems, otherwise DataMapper::auto_migrate! cannot be found:
+# http://datamapper.lighthouseapp.com/projects/20609/changesets/98f9311d58357c38beb8c779d12be5f0c62fcb72
+%w(rubygems sinatra haml dm-core dm-migrations dm-timestamps dm-types uri rest-client xmlsimple ./dirty_words).each  { |lib| require lib}
 
 
 # ======================
 # Application Flow
 # ======================
 
-get '/' { haml :index }
+get '/' do haml :index end
 
 # The 'create shortened' URL route is a HTTP POST request to (/).
 # It is used to create the short URL.
@@ -21,7 +27,7 @@ post '/' do
   # Therefore the following test will probably never detect any non-existing URL.
   raise "Invalid URL" unless uri.kind_of?(URI::HTTP) or uri.kind_of?(URI::HTTPS)
 
-  @link = Link.shortenI(params[:original], custom)
+  @link = Link.shorten(params[:original], custom)
 
   haml :index
 end
@@ -74,18 +80,18 @@ end
 # Data Model
 # ======================
 
-DataMapper.setup(:default, 'mysql://root:moinmoin@localhost/cloning')
+DataMapper.setup(:default, 'mysql://root:moinmoin@localhost/tinyclone')
 
 class Url
-  include Datamapper::Ressource
+  include DataMapper::Resource
   property :id,       Serial
   property :original, String, :length => 255
 
-  belongs_to :link
+  belongs_to :link   # => adds column 'link_identifier'  (The identifier column is Link's primary key)
 end
 
 class Link
-  include DataMapper::Ressource
+  include DataMapper::Resource
   property :identifier, String, :key => true
   property :created_at, DateTime
   has 1, :url
@@ -296,3 +302,37 @@ __END__
 %p
   %a{:href => 'http://github.com/sausheong/tinyclone'}
     Full source code
+
+@@info
+%1.title Information
+.span-3 Original
+.span-21.last= @link.url.original
+.span-3 Shortened
+.span-21.last
+  %a{:href => '/#{@link.identifier}"}
+    = "http://tinyclone.saush.com/#{@link.identifier}"
+.span-3 Date created
+.span-21.last= @link.created_at
+.span-3 Number of visits
+.span-21.last= "#{@link.visits.size.to_s} visits"
+
+%h2 = "Number of visits in the past #{@num_of_days} days"
+- %w(7 14 21 30).each do |num_days|
+  %a{:href => "/info/#{@link.identifier}/#{num_days}"}
+    ="#{num_days} days "
+  |
+%p
+.span-24.last
+  %img{:src => @count_days_bar}
+
+%hs Number of visits by country
+- %w(world usa asia europe africa middle_east south_americe).each do |loc|
+  %a{:href => "/info/#{@link.identifier}/#{@num_of_days.to_s}/#{loc}"
+     = loc
+  |
+%p
+.span-12
+  %img{:src => @count_country_map}
+.span-12.last
+  %img{:scr => @count_country_bar}
+%p
