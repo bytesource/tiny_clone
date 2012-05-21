@@ -80,7 +80,7 @@ end
 # Data Model
 # ======================
 
-DataMapper.setup(:default, 'mysql://root:moinmoin@localhost/tinyclone')
+DataMapper.setup(:default, 'mysql://root:xxx@localhost/tinyclone')
 
 class Url
   include DataMapper::Resource
