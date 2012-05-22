@@ -4,7 +4,7 @@
 # NOTE: gem install xmlsimple, BUT require 'xmlsimple' (no hyphen)
 # NOTE: Need to add dm-migrations to the list of required gems, otherwise DataMapper::auto_migrate! cannot be found:
 # http://datamapper.lighthouseapp.com/projects/20609/changesets/98f9311d58357c38beb8c779d12be5f0c62fcb72
-%w(rubygems sinatra haml dm-core dm-migrations dm-timestamps dm-types uri rest-client xmlsimple ./dirty_words).each  { |lib| require lib}
+%w(rubygems sinatra haml dm-core dm-migrations dm-transactions dm-timestamps dm-types uri rest-client xmlsimple ./dirty_words).each  { |lib| require lib}
 
 
 # ======================
@@ -80,7 +80,7 @@ end
 # Data Model
 # ======================
 
-DataMapper.setup(:default, 'mysql://root:xxx@localhost/tinyclone')
+DataMapper.setup(:default, 'mysql://root:moinmoin@localhost/tinyclone')
 
 class Url
   include DataMapper::Resource
@@ -103,6 +103,8 @@ class Link
     url = Url.first(:original => original)
     # If the original URL is already shortended, return the shortened link right away.
     return url.link if url
+
+    link = nil
 
     if custom  # not 'nil'
       # Check if the custom url is already stored in the database
@@ -130,7 +132,7 @@ class Link
     # to_s(base=10) → string
     # Returns a string containing the representation of fix radix base (between 2 and 36)
     # 12345.to_s(36)   #=> "9ix
-    short_link = url.id.to_s(36)
+    short_link = url.id.to_i.to_s(36) # http://stackoverflow.com/questions/6727490/how-do-i-handle-the-wrong-number-of-method-arguments
     # We only proceed if the shortened link is not found in the links table and does not contain any dirty words.
     if Link.first(:identifier => short_link.nil?) or !DIRTY_WORDS.include?(short_link)
       link = Link.new(:identifier => short_link)
@@ -240,6 +242,12 @@ class Visit
 
 end
 
+
+# http://stackoverflow.com/a/8517787
+DataMapper.finalize
+
+# enable :inline_templates
+
 __END__
 
 # ======================
@@ -266,7 +274,7 @@ __END__
 %html
   %head
     %title TinyClone
-    %link{:rel => 'stylesheet', :href => http://www.blueprintcss.org/blueprint/screen.css', :type => 'text/css'}
+    %link{:rel => 'stylesheet', :href => 'http://www.blueprintcss.org/blueprint/screen.css', :type => 'text/css'}
   %body
     .container
       %p
@@ -279,15 +287,15 @@ __END__
     %code= @link.url.original
     has been shortened to
     %a{:href => "/#{@link.identifier}"}
-      = http://tinyclone.saush.com/#{@link.identifier}"
+      = "http://tinyclone.saush.com/#{@link.identifier}"
     %br
     Go to
     %a{:href => "/info/#{@link.identifier}"}
-      = http://tinyclone.saush.com/info/#{@link.identifier}"
+      = "http://tinyclone.saush.com/info/#{@link.identifier}"
     to get more information about this link.
 - if env['sinatra.error']
   .error = env['sinatra.error']
-%form{:method => 'post', action => '/'}
+%form{:method => 'post', :action => '/'}
   Shorten this:
   %input{:type => 'text', :name => 'original', :size => 70}
   %input{:type => 'submit', :value => 'now!'}
