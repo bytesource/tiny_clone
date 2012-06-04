@@ -1,5 +1,13 @@
-%w(rubygems sinatra haml dm-core dm-migrations dm-timestamps dm-types uri rest-client xmlsimple ./dirty_words).each  { |lib| require lib}
-disable :show_exceptions
+%w(rubygems sinatra haml data_mapper uri rest-client xmlsimple ./dirty_words).each  { |lib| require lib}
+
+# disable :show_exceptions
+
+configure do
+  # If you want the logs displayed you have to do this before the call to setup
+  # http://datamapper.org/getting-started.html
+  DataMapper::Logger.new(STDOUT, :debug)
+  DataMapper.setup(:default, ENV['DATABASE_URL'] || 'mysql://root:moinmoin@localhost/tinyclone')
+end
 
 get '/' do haml :index end
 
@@ -41,10 +49,8 @@ def get_remote_ip(env)
   end
 end
 
-# obsolete, now detected automatically
 # use_in_file_templates!
 
-DataMapper.setup(:default, ENV['DATABASE_URL'] || 'mysql://root:root@localhost/tinyclone')
 class Url
   include DataMapper::Resource
   property  :id,          Serial
@@ -83,8 +89,9 @@ class Link
 
   def self.create_link(original)
     url = Url.create(:original => original)
-    if Link.first(:identifier => url.id.to_s(36)).nil? or !DIRTY_WORDS.include? url.id.to_s(36)
-      link = Link.new(:identifier => url.id.to_s(36))
+    short_version = url.id.to_i.to_s(36)
+    if Link.first(:identifier => short_version.nil?) or !DIRTY_WORDS.include?(short_version)
+      link = Link.new(:identifier => short_version)
       link.url = url
       link.save
       return link
@@ -143,6 +150,8 @@ class Visit
   end
 end
 
+
+# http://stackoverflow.com/a/8517787
 DataMapper.finalize
 
 __END__
