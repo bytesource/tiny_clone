@@ -17,6 +17,8 @@
 require 'data_mapper'
 
 DataMapper.setup(:default, 'mysql://root:xxx@localhost/cloning')
+# Postgres:
+# DataMapper.setup(:default, 'postgres://postgres:xxx@localhost/cloning')
 
 class User
   include DataMapper::Resource
