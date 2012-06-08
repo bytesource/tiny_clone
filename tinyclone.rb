@@ -9,7 +9,6 @@
   require lib
 end
 
-
 # ======================
 # Application Flow
 # ======================
@@ -18,7 +17,7 @@ configure do
   # If you want the logs displayed you have to do this before the call to setup
   # http://datamapper.org/getting-started.html
   DataMapper::Logger.new(STDOUT, :debug)
-  DataMapper.setup(:default, ENV['DATABASE_URL'] || 'mysql://root:moinmoin@localhost/tinyclone')
+  DataMapper.setup(:default, 'postgres://postgres:blablabla@localhost/tinyclone')
 end
 
 get '/' do haml :index end
