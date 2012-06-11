@@ -1,5 +1,5 @@
 # mysql:
 # create database tinyclone
 
-require './tinyclone'
+require './postgres_tinyclone'
 DataMapper.auto_migrate!

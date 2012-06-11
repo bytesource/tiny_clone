@@ -5,7 +5,7 @@
 # NOTE: Need to add dm-migrations to the list of required gems, otherwise DataMapper::auto_migrate! cannot be found:
 # http://datamapper.lighthouseapp.com/projects/20609/changesets/98f9311d58357c38beb8c779d12be5f0c62fcb72
 # NOTE: Instead of requiring all theses dm-xxx gems, you can just require 'data_mapper' that includes everything you need.
-%w(rubygems sinatra haml dm-core dm-migrations dm-transactions dm-timestamps dm-types uri rest-client xmlsimple ./dirty_words).each do |lib|
+%w(rubygems sinatra haml uri rest-client xmlsimple ./dirty_words ./sequel_db).each do |lib|
   require lib
 end
 

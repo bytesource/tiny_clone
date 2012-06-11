@@ -90,7 +90,7 @@ class Link
   def self.create_link(original)
     url = Url.create(:original => original)
     short_version = url.id.to_i.to_s(36)
-    if Link.first(:identifier => short_version.nil?) or !DIRTY_WORDS.include?(short_version)
+    if Link.first(:identifier => short_version).nil? or !DIRTY_WORDS.include?(short_version)
       link = Link.new(:identifier => short_version)
       link.url = url
       link.save
