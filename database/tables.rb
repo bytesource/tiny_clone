@@ -1,5 +1,7 @@
 require 'sequel'
 require_relative 'connection'
+# http://stackoverflow.com/questions/3795513/ruby-require-file-doesnt-work-but-require-file-does-why
+# http://geek4eva.com/2011/08/01/current-directory-removed-from-load_path-in-ruby-1-9-2/
 
 # Creating Tables 
 # http://sequel.rubyforge.org/rdoc/files/doc/schema_modification_rdoc.html
