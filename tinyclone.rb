@@ -5,7 +5,7 @@
 # NOTE: Need to add dm-migrations to the list of required gems, otherwise DataMapper::auto_migrate! cannot be found:
 # http://datamapper.lighthouseapp.com/projects/20609/changesets/98f9311d58357c38beb8c779d12be5f0c62fcb72
 # NOTE: Instead of requiring all theses dm-xxx gems, you can just require 'data_mapper' that includes everything you need.
-%w(rubygems sinatra haml dm-core dm-migrations dm-transactions dm-timestamps dm-types uri rest-client xmlsimple ./dirty_words).each do |lib|
+%w(rubygems sinatra haml uri rest-client xmlsimple ./dirty_words ./database).each do |lib|
   require lib
 end
 
@@ -16,8 +16,6 @@ end
 configure do
   # If you want the logs displayed you have to do this before the call to setup
   # http://datamapper.org/getting-started.html
-  DataMapper::Logger.new(STDOUT, :debug)
-  DataMapper.setup(:default, 'postgres://postgres:blablabla@localhost/tinyclone')
 end
 
 get '/' do haml :index end
@@ -46,11 +44,15 @@ end
 # At the same time it records the call as a visit.
 get '/:short_url' do
   return if params[:short_url] == 'favicon.ico'
-  puts "~~~~~~~~~~~~~~~~~~~~~"
-  puts "Short URL in get: #{params[:short_url]}"
-  puts "~~~~~~~~~~~~~~~~~~~~~"
-  link = Link.first(:identifier => params[:short_url])    # find entry for short_url (but what if it cannot be found???)
-  link.visits << Visit.create(:ip => get_remote_ip(env)) # create new Visit object (each Visit object will be one count)
+  puts "hello I am inside get '/:short_url"
+  
+  link = Link
+  # link = Link.first(:short => params[:short_url])    # find entry for short_url (but what if it cannot be found???)
+  ip = get_remote_ip(env)
+  puts '--------------------'
+  puts ip
+  puts '--------------------'
+  link.visits << Visit.create(:ip => ip) # create new Visit object (each Visit object will be one count)
   link.save
 
   # The redirect command in Sinatra normally issues a HTTP 302 response code.
@@ -74,7 +76,7 @@ end
 
 ['/info/:short_url', '/info/:short_url/:num_of_days', '/info/:short_url/:num_of_days/:map'].each do |path|
   get path do
-    @link = Link.first(:identifier => params[:short_url])
+    @link = Link.first(:short => params[:short_url])
     raise 'This link has not yet been defined' unless @link
 
     @num_of_days    = (params[:num_of_days] || 15).to_i
@@ -96,16 +98,16 @@ end
 class Url
   include DataMapper::Resource
   property :id,       Serial
-  property :original, String, :length => 255
+  property :original, String,  :length => 255
 
-  # Adds an additional column 'link_identifier' as a foreign key
-  # (The 'identifier' column is Link's primary key)
+  # Adds an additional column 'link_short' as a foreign key
+  # (The 'short' column is Link's primary key)
   belongs_to :link
 end
 
 class Link
   include DataMapper::Resource
-  property :identifier, String, :key => true
+  property :short, String, :key => true
   property :created_at, DateTime
   has 1, :url
   has n, :visits
@@ -121,13 +123,13 @@ class Link
 
     if custom  # not 'nil'
       # Check if the custom url is already stored in the database
-      raise 'Someone has already take this custom URL, sorry' unless Link.first(:identifier => custom).nil?
+      raise 'Someone has already take this custom URL, sorry' unless Link.first(:short => custom).nil?
 
       raise 'This custom URL is not allowed due to profanity' if DIRTY_WORDS.include? custom
 
       # Everything is ok, go ahead and store the custom url.
       transaction do |txn|
-        link = Link.new(:identifier => custom)  # new Link instance
+        link = Link.new(:short => custom)  # new Link instance
         link.url = Url.create(:original => original) # link has one url
         link.save
       end
@@ -147,12 +149,20 @@ class Link
     # 12345.to_s(36)   #=> "9ix
     short_link = url.id.to_i.to_s(36) # http://stackoverflow.com/questions/6727490/how-do-i-handle-the-wrong-number-of-method-arguments
     # We only proceed if the shortened link is not found in the links table and does not contain any dirty words.
-    if Link.first(:identifier => short_link.nil?) or !DIRTY_WORDS.include?(short_link)
-      link = Link.new(:identifier => short_link)
+    if Link.first(:short => short_link).nil? and !DIRTY_WORDS.include?(short_link) # before: 'or'
+      puts "-----------------------------"
+      puts "inside 'if"
+      puts "short: #{short_link}"
+      puts "-----------------------------"
+      link = Link.new(:short => short_link)
       link.url = url
       link.save
       return link
     else  # shortend link either already in database or contains dirty words
+      puts "inside 'else"
+      puts "short: #{short_link}"
+      puts "-----------------------------"
+      link = Link.new(:short => short_link)
       # Recurse and try again
       create_link(original)
     end
@@ -166,8 +176,8 @@ class Visit
   property :ip,           IPAddress
   property :country,      String
 
-  # Adds an additional column 'link_identifier' as a foreign key
-  # (The 'identifier' column is Link's primary key)
+  # Adds an additional column 'link_short' as a foreign key
+  # (The 'short' column is Link's primary key)
   belongs_to :link
 
   after :create, :set_country
@@ -178,27 +188,27 @@ class Visit
     self.save
   end
 
-  def self.count_by_date_with(identifier, num_of_days)
+  def self.count_by_date_with(short, num_of_days)
     # Returns an array of Ruby Struct objects
     # Selects each distinct date with the number of its occurences (number of rows).
-    # Chooses those dates that are associated with the correct identifier (short link) and that
+    # Chooses those dates that are associated with the correct short (short link) and that
     # were created within the required time frame.
     # use 'select' instead of 'query', which is deprecated.
     # MYSQL:
-    # visits = repository(:default).adapter.select(<<-QUERY)   # Where does the name 'link_identifier' (see query below) come from???
+    # visits = repository(:default).adapter.select(<<-QUERY)   # Where does the name 'link_short' (see query below) come from???
     # SELECT date(created_at) as date, count(*) as count
     # FROM visits
-    #   where link_identifier = '#{identifier}' and
+    #   where link_short = '#{short}' and
     #         created_at between CURRENT_DATE-#{num_of_days} and
     #         CURRENT_DATE+1
     #   group by date(created_at)
     # QUERY
 
     # POSTGRESQL:
-    visits = repository(:default).adapter.select(<<-QUERY)   # Where does the name 'link_identifier' (see query below) come from???
+    visits = repository(:default).adapter.select(<<-QUERY)   # Where does the name 'link_short' (see query below) come from???
     SELECT date(created_at) as date, count(*) as count
     FROM visits
-      where link_identifier = '#{identifier}' and
+      where link_short = '#{short}' and
             created_at between CURRENT_DATE-#{num_of_days} and
             CURRENT_DATE+1
       group by date(created_at)
@@ -216,25 +226,25 @@ class Visit
 
       result = results.sort.reverse  # <Date> => count hash
       puts "-------------------"
-      puts result
+      p result
       puts "-------------------"
       result
     end
   end
 
   # Returns an array of Ruby Struct objects (<country>, <count>)
-  def self.count_by_country_with(identifier)
+  def self.count_by_country_with(short)
     repository(:default).adapter.query(<<-QUERY)
     SELECT country, count(*) as count
     FROM visits
-      where link_identifier = '#{identifier}'
+      where link_short = '#{short}'
       group by country
     QUERY
   end
 
   # Returns vertical bar chart that shows the visit count by date.
-  def self.count_days_bar(identifier, num_of_days)
-    visits = count_by_date_with(identifier, num_of_days) # <Date> => count hash
+  def self.count_days_bar(short, num_of_days)
+    visits = count_by_date_with(short, num_of_days) # <Date> => count hash
     data, labels = [], []
 
     visits.each do |date,count|
@@ -248,8 +258,8 @@ class Visit
     url_core + url_custom
   end
 
-  def self.count_days_bar(identifier,num_of_days)
-    visits = count_by_date_with(identifier,num_of_days)
+  def self.count_days_bar(short,num_of_days)
+    visits = count_by_date_with(short,num_of_days)
     data, labels = [], []
     visits.each {|visit| data << visit[1]; labels << "#{visit[0].day}/#{visit[0].month}" }
     "http://chart.apis.google.com/chart?chs=820x180&cht=bvs&chxt=x&chco=a4b3f4&chm=N,000000,0,-1,11&chxl=0:|#{labels.join('|')}&chds=0,#{data.sort.last+10}&chd=t:#{data.join(',')}"
@@ -258,10 +268,10 @@ class Visit
 
   # Returns vertical bar chart that shows the visit count by date.
   # map = The geographical zoom-in of the map we want and returns two charts.
-  def self.count_country_char(identifier, map)    countries, count = [], []
+  def self.count_country_char(short, map)    countries, count = [], []
 
     # Array of Ruby Struct objects (<country>, <count>)
-    count_by_country_with(identifier).each do |visit|
+    count_by_country_with(short).each do |visit|
       countries << visit.country
       count     << visit.count
     end
@@ -326,12 +336,12 @@ __END__
   .success
     %code= @link.url.original
     has been shortened to
-    %a{:href => "/#{@link.identifier}"}
-      = "http://tinyclone.saush.com/#{@link.identifier}"
+    %a{:href => "/#{@link.short}"}
+      = "http://tinyclone.saush.com/#{@link.short}"
     %br
     Go to
-    %a{:href => "/info/#{@link.identifier}"}
-      = "http://tinyclone.saush.com/info/#{@link.identifier}"
+    %a{:href => "/info/#{@link.short}"}
+      = "http://tinyclone.saush.com/info/#{@link.short}"
     to get more information about this link.
 - if env['sinatra.error']
   .error= env['sinatra.error']
@@ -357,8 +367,8 @@ __END__
 .span-21.last= @link.url.original
 .span-3 Shortened
 .span-21.last
-  %a{:href => "/#{@link.identifier}"}
-    = "http://tinyclone.saush.com/#{@link.identifier}"
+  %a{:href => "/#{@link.short}"}
+    = "http://tinyclone.saush.com/#{@link.short}"
 .span-3 Date created
 .span-21.last= @link.created_at
 .span-3 Number of visits
@@ -366,7 +376,7 @@ __END__
 
 %h2= "Number of visits in the past #{@num_of_days} days"
 - %w(7 14 21 30).each do |num_days|
-  %a{:href => "/info/#{@link.identifier}/#{num_days}"}
+  %a{:href => "/info/#{@link.short}/#{num_days}"}
     ="#{num_days} days "
   |
 %p
