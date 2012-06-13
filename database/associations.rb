@@ -29,3 +29,32 @@ end
 class Visit < Sequel::Model
   many_to_one :link # , :key => :short
 end
+
+# Methods added:
+
+# 1) 
+# -- many_to_ONE
+# -- one_to_ONE
+
+# Setter
+# @album.artist = Artist.create(:name=>'YJM')
+
+# 2) 
+# -- many_to_MANY
+# -- one_to_MANY
+
+# add_*, remove_*, remove_all
+# @artist.add_album(@album)       # associate an object to the current object
+# @artist.remove_album(@album)    # dissociate an object from the current object
+# @artist.remove_all_albums       # dissociate all currently associated objects
+
+
+# Getter
+# @artist.albums
+# @album.artists
+
+
+
+
+
+

@@ -14,7 +14,10 @@ DB = Sequel.connect(:adapter  =>'postgres',
                     :user     =>'postgres',  
                     # :logger => Logger.new('log/db.log'),
                     :password =>'blablabla')
-                    
+  
+# SQLite used during testing                    
+# DB = Sequel.connect('sqlite://testing.db')
+
 
 # Logging SQL Queries
 # ---------------------------------
