@@ -31,7 +31,7 @@ DB.create_table? :urls do
   String      :original, :size => 255, :unique => true, :null => false
   # foreign_key is integer by default, but here refers to a string.
   # http://sequel.rubyforge.org/rdoc/classes/Sequel/Schema/Generator.html#method-i-foreign_key
-  foreign_key :link_short, :links, :type => String, :on_delete => :cascade
+  foreign_key :link_short, :links, :type => String, :on_delete => :cascade     # 2)
 end
 
 
@@ -42,8 +42,12 @@ DB.create_table? :visits do
   inet        :ip,         :null => false
   String      :country,    :size => 255
   DateTime    :created_at, :null => false
-  foreign_key :link_short, :links, :type => String, :on_delete => :cascade
+  foreign_key :link_short, :links, :type => String, :on_delete => :cascade       # 2)
 end
+
+# 2)
+# :null => false does not work with associations, because when using associtations,
+# the foreign key is added only after the row has been saved (using an UPDATE statement).
 
 # CREATE TABLE "links"
 # ("short" text PRIMARY KEY, "created_at" timestamp)
