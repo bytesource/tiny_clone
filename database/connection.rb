@@ -8,15 +8,15 @@ require 'sequel'
 # gem install pg         # database adapter
 # gem install sequel_pg  # making postgres faster (optional)
 
-DB = Sequel.connect(:adapter  =>'postgres', 
-                    :host     =>'localhost', 
-                    :database =>'tinyclone', 
-                    :user     =>'postgres',  
-                    # :logger => Logger.new('log/db.log'),
-                    :password =>'blablabla')
+# DB = Sequel.connect(:adapter  =>'postgres', 
+#                     :host     =>'localhost', 
+#                     :database =>'tinyclone', 
+#                     :user     =>'postgres',  
+#                     # :logger => Logger.new('log/db.log'),
+#                     :password =>'blablabla')
   
-# SQLite used during testing                    
-# DB = Sequel.connect('sqlite://testing.db')
+# SQLite in-memory database used during testing                    
+DB = Sequel.sqlite
 
 
 # Logging SQL Queries

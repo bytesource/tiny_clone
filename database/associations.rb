@@ -15,20 +15,24 @@ require 'sequel'
 #    uses many_to_one,
 # -- The other model uses one_to_one:
 class Url < Sequel::Model
- # :key => :short probably not necessary.
- # :short is a well defined primary key, so there will be a link_short foreign key here
- # pointing to :short
- many_to_one :link #, :key => :short 
+ 
+ many_to_one :link, :key => :link_short    # *_to_one  => singular
 end
+
 
 class Link < Sequel::Model
-  one_to_one  :url #, :key => :short
-  one_to_many :visit
+  one_to_one  :url,    :key => :link_short
+  one_to_many :visits, :key => :link_short  # *_to_many => plural
 end
 
+
 class Visit < Sequel::Model
-  many_to_one :link # , :key => :short
+  many_to_one :link, :key => :link_short
 end
+
+
+
+
 
 # Methods added:
 
@@ -37,7 +41,7 @@ end
 # -- one_to_ONE
 
 # Setter
-# @album.artist = Artist.create(:name=>'YJM')
+# @album.artist = Artist.create(:name=>'YJM')  
 
 # 2) 
 # -- many_to_MANY
