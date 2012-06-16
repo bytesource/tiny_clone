@@ -54,3 +54,22 @@ end
 # ("id" serial PRIMARY KEY, "ip" inet, "country" varchar(255),
 #  "created_at" timestamp, "link_short" text REFERENCES "links" ON DELETE CASCADE)
 
+
+# NOTE on many_to_many associations
+# With many_to_many associations, 
+# the default join table for the association uses the SORTED 
+# underscored names of both model classes.
+
+# Altering a table:
+
+# DB.alter_table(:albums) do
+#   add_foreign_key :artist_id, :artists
+# end
+
+
+
+
+
+
+
+
