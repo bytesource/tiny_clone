@@ -15,7 +15,12 @@ Link.unrestrict_primary_key
 DB.transaction do
 
   key = 'youtube'
+  # link = Link.create(:short => key)    # :default => created_at_function.lit
+  # [{:short=>"youtube", :created_at=>2012-06-17 16:08:30 +0800}]
   link = Link.create(:short => key, :created_at => Time.now)
+  puts '#####################################'
+  p DB[:links].all
+  # [{:short=>"youtube", :created_at=>2012-06-17 16:06:51 +0800}]
 
   # #association= sets the relevant foreign key to be the same as the primary key of the other object
   link.url = Url.new(:original => 'http://www.sovonexxx.com') # Url object gets saved 1)
@@ -50,9 +55,15 @@ DB.transaction do
   # `link_short` = NULL WHERE (`id` = 2)
   puts "removed object of one_to_many association: foreign_key set to null"
   puts "many_to_many: row from join table will be removed"
-  Visit.filter(:link_short => nil).all
+  # NOTE: The add_association and remove_association methods 
+  #       should be thought of as adding and removing from the association, 
+  #       NOT from the database.
+  # -- Use visit2.destroy to remove from the database.
+  p Visit.filter(:link_short => nil).all
   # SELECT * FROM `visits` WHERE (`link_short` IS NULL)
-  # Why is there no output???
+  # Output:
+  # [#<Visit @values={:id=>2, :ip=>"23.34.56.44", :country=>"Germany", 
+  # :created_at=>2012-06-17 15:23:03 +0800, :link_short=>nil}>]
   puts '________________'
   
   puts "all visits as records:"
@@ -111,6 +122,22 @@ DB.transaction do
   p Visit.filter(:country => 'Germany').filter(:country => 'China') # A AND B 
   # #<Sequel::SQLite::Dataset: "SELECT * FROM `visits` WHERE ((`country` = 'Germany') AND (`country` = 'China'))">
   # This does not return any record in this case, obviously
+  
+  puts "Reflection"
+  # http://sequel.rubyforge.org/rdoc/files/doc/reflection_rdoc.html
+  # NOTE: Should not include the primary key index, functional indexes, or partial indexes.
+  p DB.indexes(:url)
+  {}
+  p DB.database_type
+  # :sqlite
+  
+  link.visits_dataset.update(:country => "Island")
+  # UPDATE `visits` SET `country` = 'Island' WHERE (`visits`.`link_short` = 'youtube')
+  p Visit.all
+  # [#<Visit @values={:id=>1, :ip=>"23.34.56.43", :country=>"Island", 
+  #  :created_at=>2012-06-17 16:25:54 +0800, :link_short=>"youtube"}>, 
+  #  #<Visit @values={:id=>2, :ip=>"23.34.56.44", :country=>"Germany", 
+  #  :created_at=>2012-06-17 16:25:54 +0800, :link_short=>nil}>, [...]]
 
 
   

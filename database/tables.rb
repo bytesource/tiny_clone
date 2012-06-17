@@ -3,6 +3,28 @@ require_relative 'connection'
 # http://stackoverflow.com/questions/3795513/ruby-require-file-doesnt-work-but-require-file-does-why
 # http://geek4eva.com/2011/08/01/current-directory-removed-from-load_path-in-ruby-1-9-2/
 
+
+def created_at_function
+  db_type = DB.database_type
+  
+  case db_type 
+  when :sqlite
+    # https://groups.google.com/forum/#!topic/sequel-talk/wO9zH0Gcz6g/discussion
+    "(datetime('now','localtime'))"
+  when :postgres
+    # http://www.postgresql.org/docs/8.1/static/functions-datetime.html
+    "localtimestamp"
+  else
+    raise "No default time stamp found for #{db_type}"
+  end 
+end
+
+p created_at_function
+  
+  
+     
+    
+
 # Creating Tables
 # http://sequel.rubyforge.org/rdoc/files/doc/schema_modification_rdoc.html
 # ---------------------------------
@@ -19,6 +41,7 @@ require_relative 'connection'
 DB.create_table? :links do
   String      :short,      :primary_key => true
   DateTime    :created_at, :null => false        # 1)
+  # DateTime    :created_at, :default => created_at_function.lit
 end
 
 # 1)
