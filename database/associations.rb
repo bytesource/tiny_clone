@@ -52,6 +52,9 @@ class Visit < Sequel::Model
   many_to_one :link, :key => :link_short   # :link = association name. Seems to determine the setter/getter method names.
 end
 
+# http://sequel.rubyforge.org/rdoc/classes/Sequel/Model/ClassMethods.html#method-i-unrestrict_primary_key
+Link.unrestrict_primary_key
+
 
 
 

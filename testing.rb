@@ -2,15 +2,12 @@ require_relative 'database/connection'
 require_relative 'database/tables'  # for SQLite in-memory database 
 require_relative 'database/associations'
 
-# links = DB[:links]
+# Timestamps
+# http://sequel.rubyforge.org/rdoc-plugins/classes/Sequel/Plugins/Timestamps.html
 
 
 # http://sequel.rubyforge.org/rdoc/classes/Sequel/Model/ClassMethods.html#method-i-unrestrict_primary_key
 Link.unrestrict_primary_key
-
-# Timestamps
-# http://sequel.rubyforge.org/rdoc-plugins/classes/Sequel/Plugins/Timestamps.html
-
 
 DB.transaction do
 
@@ -139,13 +136,57 @@ DB.transaction do
   #  #<Visit @values={:id=>2, :ip=>"23.34.56.44", :country=>"Germany", 
   #  :created_at=>2012-06-17 16:25:54 +0800, :link_short=>nil}>, [...]]
 
-
+  # Callbacks
+  # Re-opening class Link < Sequel::Model
+  class Link
+    one_to_one  :url,    :key => :link_short, :after_set => :log_url_set 
+    one_to_many :visits, :key => :link_short, :after_add => :log_add_visit # :symbol, proc or array 2)
+    
+    # called with the ASSOCIATED object
+    def log_add_visit(associated_obj)  
+      puts "Visit #{associated_obj.inspect} associated to #{inspect}"
+    end
+    
+    def log_url_set(url)
+      puts "Url with id #{url.id} associated to link with key #{self.short}."
+    end
+  end
   
+  # Before callbacks are often used to check preconditions, 
+  # they can return false to signal Sequel to abort the modification. 
+  # If any before callback returns false, the remaining before callbacks are not called 
+  # and modification is aborted.
+  
+  # 2)
+  # Procs are called with two arguments:
+  # -- receiver: first argument
+  # -- associated object: second argument
+  
+  
+  visit_new = Visit.create(:ip => '23.34.56.43', :country => 'Costa Rica', :created_at => Time.now)
+  # triggers :after_add:
+  link.add_visit(visit_new)
+  # Visit #<Visit @values={:id=>5, :ip=>"23.34.56.43", :country=>"Costa Rica", 
+  # :created_at=>2012-06-18 16:00:12 +0800, :link_short=>"youtube"}> 
+  # associated to #<Link @values={:short=>"youtube", :created_at=>2012-06-18 16:00:12 +0800}>
+ 
+  short = rand(10 ** 12).to_s(36)
+  
+  link_new = Link.create(:short => short, :created_at => Time.now)
+  # using #new instead of #create raises error:
+  # SQLite3::ConstraintException: foreign key constraint failed: 
+  # INSERT INTO `urls` (`original`, `link_short`) VALUES ('http://www.google.com', 'meme')
 
+  # triggers :after_set
+  link_new.url = Url.new(:original => 'http://www.google.com') # Url object gets saved 1)
+  # => Url with id 2 associated to link with key 4opc2pfz.
+  
 
 
   
 end
+
+
 
 # p DB[:links].all # 'created at' CANNOT be nil!
 # [{:short=>"hello", :created_at=>nil},
