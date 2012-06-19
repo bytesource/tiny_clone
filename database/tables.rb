@@ -39,7 +39,7 @@ p created_at_function
 #       primary key.
 #       Likewise, drop table links using 'cascade': drop table links cascade;
 DB.create_table? :links do
-  String      :short,      :primary_key => true
+  String      :short,      :primary_key => true, :size => 15
   DateTime    :created_at, :null => false        # 1)
   # DateTime    :created_at, :default => created_at_function.lit
 end

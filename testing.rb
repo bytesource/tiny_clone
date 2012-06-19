@@ -1,6 +1,7 @@
 require_relative 'database/connection'
 require_relative 'database/tables'  # for SQLite in-memory database 
 require_relative 'database/associations'
+require 'date'
 
 # Timestamps
 # http://sequel.rubyforge.org/rdoc-plugins/classes/Sequel/Plugins/Timestamps.html
@@ -140,15 +141,30 @@ DB.transaction do
   # Re-opening class Link < Sequel::Model
   class Link
     one_to_one  :url,    :key => :link_short, :after_set => :log_url_set 
-    one_to_many :visits, :key => :link_short, :after_add => :log_add_visit # :symbol, proc or array 2)
+    one_to_many :visits, :key => :link_short, 
+                         :after_add => :log_add_visit, # :symbol, proc or array 2)
+                         :after_load => :handle_loaded_visits
     
+    # :after_add 
     # called with the ASSOCIATED object
     def log_add_visit(associated_obj)  
       puts "Visit #{associated_obj.inspect} associated to #{inspect}"
     end
     
+    # :after_set
     def log_url_set(url)
       puts "Url with id #{url.id} associated to link with key #{self.short}."
+    end
+    
+    attr_reader :latest_country_count
+    
+    # :after_load
+    # For one_to_many and many_to_many associations, 
+    # both the argument to symbol callbacks and the second argument to proc callbacks 
+    # will be an array of associated objects instead of a single object.
+    def handle_loaded_visits(visits)
+      puts "((((((((((((())))))))))))) #{visits}"
+      @latest_country_count = visits.reduce(Hash.new(0)) {|hash, visit| hash[visit] += 1; hash}
     end
   end
   
@@ -181,18 +197,71 @@ DB.transaction do
   link_new.url = Url.new(:original => 'http://www.google.com') # Url object gets saved 1)
   # => Url with id 2 associated to link with key 4opc2pfz.
   
+  link.add_visit(Visit.create(:ip => '23.45.23.45', :country => 'Denmark', :created_at => Time.now))
+  
+  puts "Lastest country count ==============="
+  p link.latest_country_count # => nil (visits not loaded yet)
+  
+  # should trigger :after_load  
+  Link.eager(:visits).all
+  p link.latest_country_count # => nil ?)
+  
+  # ?) :after_load
+  # Not called when eager loading via eager_graph, but called when eager loading via eager.
+  
+  p link_new.visits
+  
+  
+  puts "QUERYING ---------------------"
+  
+  # to_hash (2 armguments)
+  # first: key
+  # second: value
+  p Visit.to_hash(:country, :link_short)
+  # {"Island"=>"youtube", "Germany"=>nil, "Costa Rica"=>"youtube", "Denmark"=>"youtube"}
+
+  # NOTE:
+  # By default, to_hash will just have the last matching value. 
+  # If you care about all matching values, use to_hash_groups:
+  p Visit.to_hash_groups(:country, :link_short)
+  # {"Island"=>["youtube", "youtube", "youtube"], "Germany"=>[nil], "Costa Rica"=>["youtube"], "Denmark"=>["youtube"]}
+
+  
+  puts '-------------------------------'
+  
 
 
   
 end
 
+# SELECT date(created_at) as date, count(*) as count
+# FROM visits
+# WHERE link_short = '#{short}' and 
+#       created_at between CURRENT_DATE-#{days} and CURRENT_DATE+1
+# GROUP BY date(created_at)
 
 
-# p DB[:links].all # 'created at' CANNOT be nil!
-# [{:short=>"hello", :created_at=>nil},
-#  {:short=>"hello2", :created_at=>2012-06-13 16:18:24 +0800},
-#  {:short=>"22", :created_at=>2012-06-13 16:21:48 +0800}]
-# p DB[:urls].all
+require 'date'
+# short = '785w3llv'.downcase
+short     = 'youtube'
+number_of_days  = 15
+day       = (60 * 60 * 24) # http://www.ruby-doc.org/core-1.9.3/Time.html#method-i-2B
+from_date = Time.now - (number_of_days * day)
+to_date   = Time.now
+
+  # NOTE: Using Time.now directly only works provided:
+  #       -- The table column is specified as being of type Date
+  #          The values for created_at are then converted to Date, even if Time.now is used
+p DB[:visits].filter(:link_short => short).
+              filter(:created_at => from_date .. to_date).group(:created_at).all
+# SELECT * FROM `visits` WHERE ((`link_short` = 'youtube') AND 
+# (`created_at` >= '2012-06-04 16:28:20.778044+0800') AND (`created_at` <= '2012-06-19 16:28:20.778047+0800')) 
+# GROUP BY `created_at`
+
+# [{ [...], :created_at=>2012-06-19 16:28:20 +0800, :link_short=>"youtube"}, 
+#  { [...], :created_at=>2012-06-19 16:28:20 +0800, :link_short=>"youtube"}, 
+#  [...]]
+
 
 
 
@@ -202,4 +271,6 @@ end
 # Generating short url:
 # rand(10 ** 12).to_s(36)
 # => "e0xnaop"
+
+# Before fetching 'short' from database: downcase(input)
 
