@@ -77,76 +77,71 @@ link2.add_visit(visit3)
 # Querying
 # =============
 
-short = 'google'
+short = 'example'
 number_of_days = 10
 
-query1 = DB[:visits].group_and_count(:created_at).
-                    filter(:link_short => short).
-                    filter(:created_at => (Date.today - number_of_days) .. Date.today)
-                    
-# #<Sequel::SQLite::Dataset: 
-# "SELECT `created_at`, count(*) AS 'count' 
-# FROM `visits` WHERE ((`link_short` = 'youtube') AND 
-# (`created_at` >= '2012-06-05') AND (`created_at` <= '2012-06-20')) 
-# GROUP BY `created_at`">
+main_query1 = DB[:visits].group_and_count{ date(created_at) }.filter(:link_short => short)
+main_query2 = DB[:visits].group_and_count{ created_at.cast(Date) }.filter(:link_short => short)
 
-# <Sequel::Postgres::Dataset: 
-# "SELECT \"created_at\", count(*) AS \"count\" 
-# FROM \"visits\" 
-# WHERE ((\"link_short\" = 'google') AND 
-# (\"created_at\" >= '2012-06-10') AND (\"created_at\" <= '2012-06-20')) 
-# GROUP BY \"created_at\"">
 
+query1 = main_query1.filter(:created_at => (Date.today - number_of_days) .. (Date.today + 1))
+query2 = main_query2.filter(:created_at => (Date.today - number_of_days) .. (Date.today + 1))
+
+
+p query1
 p query1.all
-# SQLite, Postgres:
-# => []
-
-
-query2 = DB[:visits].group_and_count(:created_at).
-                     filter(:link_short => short).
-                     filter{(created_at >= (Sequel::CURRENT_DATE - number_of_days)) & 
-                            (created_at <= Sequel::CURRENT_DATE)}
-     
-# #<Sequel::SQLite::Dataset:
-# "SELECT `created_at`, count(*) AS 'count' 
-# FROM `visits` 
-# WHERE ((`link_short` = 'google') AND 
-# (`created_at` >= (date(CURRENT_TIMESTAMP, 'localtime') - 10)) AND (`created_at` <= date(CURRENT_TIMESTAMP, 'localtime'))) 
-# GROUP BY `created_at`">
-
-#<Sequel::Postgres::Dataset: 
-# "SELECT \"created_at\", count(*) AS \"count\" 
-# FROM \"visits\" WHERE ((\"link_short\" = 'google') AND 
-# (\"created_at\" >= (CURRENT_DATE - 10)) AND (\"created_at\" <= CURRENT_DATE)) 
-# GROUP BY \"created_at\"">
-
-
+p query2
 p query2.all
-# SQLite, Postgres:
-# => []
 
-
-query3 = DB[:visits].group_and_count(:created_at).
-                     filter(:link_short => short).
-                     filter{(created_at >= date(Sequel::CURRENT_DATE, "'-? days'".lit(number_of_days.to_i))) & 
-                            (created_at <= date(Sequel::CURRENT_DATE,'+1 day'))}
+# SQLite
 
 # #<Sequel::SQLite::Dataset: 
-# "SELECT `created_at`, count(*) AS 'count' FROM `visits` 
-# WHERE ((`link_short` = 'google') AND 
-# (`created_at` >= date(date(CURRENT_TIMESTAMP, 'localtime'), '-10 days')) AND 
-# (`created_at` <= date(date(CURRENT_TIMESTAMP, 'localtime'), '+1 day'))) 
-# GROUP BY `created_at`">
+# "SELECT date(`created_at`), count(*) AS 'count' 
+# FROM `visits` WHERE ((`link_short` = 'example') AND 
+# (`created_at` >= '2012-06-11') AND (`created_at` <= '2012-06-22')) 
+# GROUP BY date(`created_at`)">
 
 
-p query3.all
-# => [{:created_at=>2012-06-20 16:39:11 +0800, :count=>1}]
+# => [{:"date(`created_at`)"=>nil, :count=>2}]
+
+# #<Sequel::SQLite::Dataset: 
+# "SELECT CAST(`created_at` AS date), count(*) AS 'count' 
+# FROM `visits` WHERE ((`link_short` = 'example') AND 
+# (`created_at` >= '2012-06-11') AND (`created_at` <= '2012-06-22')) 
+# GROUP BY CAST(`created_at` AS date)">
+
+# =  [{:"CAST(`created_at` AS date)"=>2012, :count=>2}]
+
+
+# Postgres
+
+# #<Sequel::Postgres::Dataset: 
+# "SELECT date(\"created_at\"), count(*) AS \"count\" 
+# FROM \"visits\" WHERE ((\"link_short\" = 'example') AND 
+# (\"created_at\" >= '2012-06-11') AND (\"created_at\" <= '2012-06-22')) 
+# GROUP BY date(\"created_at\")">
+
+# => [{:date=>#<Date: 2012-06-21 (4912199/2,0,2299161)>, :count=>2}]
+
+
+# #<Sequel::Postgres::Dataset: 
+# "SELECT CAST(\"created_at\" AS date), count(*) AS \"count\" 
+# FROM \"visits\" WHERE ((\"link_short\" = 'example') AND 
+# (\"created_at\" >= '2012-06-11') AND (\"created_at\" <= '2012-06-22')) 
+# GROUP BY CAST(\"created_at\" AS date)">
+
+# => [{:created_at=>#<Date: 2012-06-21 (4912199/2,0,2299161)>, :count=>2}]
+
+
+if DB.database_type == :postgres
+  query3 = main_query2.filter{(created_at >= (Sequel::CURRENT_DATE - number_of_days)) & 
+                         (created_at <= (Sequel::CURRENT_DATE + 1))}
+else
+  query3 = main_query1.filter{(created_at >= date(Sequel::CURRENT_DATE, "'-? days'".lit(number_of_days.to_i))) & 
+                         (created_at <= date(Sequel::CURRENT_DATE,'+1 day'))}
+end
 
 
 
 # During Testing:
 DB.drop_table(:urls, :visits, :links)
-
-
-
-

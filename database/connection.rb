@@ -14,9 +14,11 @@ require 'sequel'
 #                     :user     =>'postgres',  
 #                     # :logger => Logger.new('log/db.log'),
 #                     :password =>'blablabla')
+
+DB = Sequel.connect('postgres://postgres:blablabla@localhost/tinyclone')
   
 # SQLite in-memory database used during testing                    
-DB = Sequel.sqlite
+# DB = Sequel.sqlite
 
 
 # Logging SQL Queries

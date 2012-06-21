@@ -3,9 +3,26 @@ require_relative 'database/tables'  # for SQLite in-memory database
 require_relative 'database/associations'
 require 'date'
 
+
+puts "Generating short url:"
+p rand(10 ** 12).to_s(36)
+# => "e0xnaop"
+# NOTE:
+# Before fetching 'short' from database: downcase(input)
+
+
+# Playing with dates
+number_of_days = 10
+day       = (60 * 60 * 24) # http://www.ruby-doc.org/core-1.9.3/Time.html#method-i-2B
+from_date = Time.now - (number_of_days * day)
+to_date   = Time.now
+
 # Timestamps
 # http://sequel.rubyforge.org/rdoc-plugins/classes/Sequel/Plugins/Timestamps.html
 
+
+puts "Tesing Sequel methods"
+puts '========================='
 
 # http://sequel.rubyforge.org/rdoc/classes/Sequel/Model/ClassMethods.html#method-i-unrestrict_primary_key
 Link.unrestrict_primary_key
@@ -16,7 +33,6 @@ DB.transaction do
   # link = Link.create(:short => key)    # :default => created_at_function.lit
   # [{:short=>"youtube", :created_at=>2012-06-17 16:08:30 +0800}]
   link = Link.create(:short => key, :created_at => Time.now)
-  puts '#####################################'
   p DB[:links].all
   # [{:short=>"youtube", :created_at=>2012-06-17 16:06:51 +0800}]
 
@@ -136,7 +152,12 @@ DB.transaction do
   #  :created_at=>2012-06-17 16:25:54 +0800, :link_short=>"youtube"}>, 
   #  #<Visit @values={:id=>2, :ip=>"23.34.56.44", :country=>"Germany", 
   #  :created_at=>2012-06-17 16:25:54 +0800, :link_short=>nil}>, [...]]
+  
+  puts "Testing return type -------------------"
+  p Visit.all.map { |row| row.class }
+  # [Visit, Visit, Visit, Visit]
 
+  
   # Callbacks
   # Re-opening class Link < Sequel::Model
   class Link
@@ -213,64 +234,107 @@ DB.transaction do
   
   
   puts "QUERYING ---------------------"
+  # NOTE:
+  # The following retrieval methods (to_hash*) always return every row in a table.
   
+  # ::map
+  # ::select_map
+  # ::select_order_map
+  
+  puts "to_hash"
+  # NOTE: ::to_hash and ::to_hash_groups work on a dataset retrieved with SELECT * FROM...
   # to_hash (2 armguments)
   # first: key
   # second: value
   p Visit.to_hash(:country, :link_short)
   # {"Island"=>"youtube", "Germany"=>nil, "Costa Rica"=>"youtube", "Denmark"=>"youtube"}
+  
+  # If you only provide one argument to to_hash, it uses the entire hash or model object as the value:
+  p Visit.to_hash(:country)
+  # {"Island"=>#<Visit @values={:id=>4, :ip=>"23.34.56.46", :country=>"Island", ...},
+  #  "Germany"=>#<Visit @values={:id=>2, :ip=>"23.34.56.44", :country=>"Germany", ...},
+  #  ...}
 
   # NOTE:
   # By default, to_hash will just have the last matching value. 
   # If you care about all matching values, use to_hash_groups:
   p Visit.to_hash_groups(:country, :link_short)
   # {"Island"=>["youtube", "youtube", "youtube"], "Germany"=>[nil], "Costa Rica"=>["youtube"], "Denmark"=>["youtube"]}
-
-  
+  puts '-------------------------------'
+ 
+  # With only one argument, the argument is the key, the values are the model objects:
+  p Visit.to_hash_groups(:country)
+  # {"Island"=>[#<Visit @values={:id=>1, :country=>"Island", ...}, #<Visit @values= ...], 
+  #  "Germany"=>[#<Visit @values={:id=>2, :country=>"Germany", ...}], 
+  #  "Costa Rica"=>[#<Visit @values={:id=>5, :country=>"Costa Rica", ...}], 
+  #  "Denmark"=>[#<Visit @values={:id=>6, :country=>"Denmark", ...}]}
+ 
+  puts '-------------------------------'
+  # Model datasets have a to_hash method that can be called without any arguments, 
+  # in which case it will use 
+  # -- the primary key as the key and 
+  # -- the model object as the value.
+  p Link.to_hash
+  # {"youtube"=>#<Link @values={:short=>"youtube", :created_at=>2012-06-20 10:59:37 +0800}>, 
+  #  "24qwubu6"=>#<Link @values={:short=>"24qwubu6", :created_at=>2012-06-20 10:59:37 +0800}>}
   puts '-------------------------------'
   
+  # Other similar methods that work on a dataset retrieved using SELECT x, y, FROM:
+  # ::select_hash
+  # ::select_hash_groups
+  
+  puts "MODIFYING DATASETS ----------------------------------"
+  
+  dataset = DB[:visits]  
+  #<Sequel::SQLite::Dataset: "SELECT * FROM `visits`">
 
+  ds2 = dataset.where(:country.like('C%')) # only countries starting with 'C'
+  #<Sequel::SQLite::Dataset: "SELECT * FROM `visits` WHERE (`country` LIKE 'C%')">
+  
+  ds3 = ds2.order(:country).select(:created_at, :country)
+  # #<Sequel::SQLite::Dataset: 
+  # "SELECT `created_at`, `country` FROM `visits` WHERE (`country` LIKE 'C%') ORDER BY `country`">
 
+  puts "Filters --------------------------------------------"
+  
+  p Visit.filter(:link_short => nil).all
+  # SELECT * FROM `visits` WHERE (`link_short` IS NULL)
+  # Output:
+  # [#<Visit @values={:id=>2, :ip=>"23.34.56.44", :country=>"Germany", 
+  #  :created_at=>2012-06-17 15:23:03 +0800, :link_short=>nil}>]
+  
+  p Visit.filter(:link_short => 'youtube', :ip => '23.34.56.46')  # a AND b
+  # #<Sequel::Postgres::Dataset: 
+  # "SELECT * FROM \"visits\" WHERE ((\"link_short\" = 'youtube') AND (\"ip\" = '23.34.56.46'))">
+
+  p Visit.filter(:id=>[1, 2]).all   # a AND b
+  # "SELECT * FROM \"visits\" WHERE (\"id\" IN (1, 2))"
+  # [#<Visit @values={:id=>2, ...}>, #<Visit @values={:id=>1, ...}>]
+  
+  # NOTE:
+  # If you need to filter for different values with the same key, 
+  # use two-element arrays instead.
+  # This, however, does not make much sense in most cases:
+  p Visit.filter([[:country, 'Germany'], [:country, 'Holland']]).all # a AND b
+  # SELECT * FROM "visits" WHERE (("country" = 'Germany') AND ("country" = 'Holland'))
+  
+  puts "Virtual Row Blocs ==================================="
+  # If a block is passed to filter, it is treated as a virtual row block:
+  
+  p Url.filter{ id < 3}
+  # SELECT * FROM "urls" WHERE ("id" < 3)
+  
+  
+  
+  
+  
+  
+  
+  
+  
   
 end
 
-# SELECT date(created_at) as date, count(*) as count
-# FROM visits
-# WHERE link_short = '#{short}' and 
-#       created_at between CURRENT_DATE-#{days} and CURRENT_DATE+1
-# GROUP BY date(created_at)
 
-
-require 'date'
-# short = '785w3llv'.downcase
-short     = 'youtube'
-number_of_days  = 15
-day       = (60 * 60 * 24) # http://www.ruby-doc.org/core-1.9.3/Time.html#method-i-2B
-from_date = Time.now - (number_of_days * day)
-to_date   = Time.now
-
-  # NOTE: Using Time.now directly only works provided:
-  #       -- The table column is specified as being of type Date
-  #          The values for created_at are then converted to Date, even if Time.now is used
-p DB[:visits].filter(:link_short => short).
-              filter(:created_at => from_date .. to_date).group(:created_at).all
-# SELECT * FROM `visits` WHERE ((`link_short` = 'youtube') AND 
-# (`created_at` >= '2012-06-04 16:28:20.778044+0800') AND (`created_at` <= '2012-06-19 16:28:20.778047+0800')) 
-# GROUP BY `created_at`
-
-# [{ [...], :created_at=>2012-06-19 16:28:20 +0800, :link_short=>"youtube"}, 
-#  { [...], :created_at=>2012-06-19 16:28:20 +0800, :link_short=>"youtube"}, 
-#  [...]]
-
-
-
-
-
-
-
-# Generating short url:
-# rand(10 ** 12).to_s(36)
-# => "e0xnaop"
-
-# Before fetching 'short' from database: downcase(input)
-
+# During Testing:
+DB.drop_table(:urls, :visits, :links)
