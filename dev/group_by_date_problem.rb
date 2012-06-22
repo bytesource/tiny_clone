@@ -8,9 +8,9 @@ require 'date'
 
 # Connection
 # =============
-DB = Sequel.sqlite
+# DB = Sequel.sqlite
 
-# DB = Sequel.connect('postgres://postgres:password@localhost/tinyclone')
+DB = Sequel.connect('postgres://postgres:blablabla@localhost/tinyclone')
 
 
 # Schema
@@ -83,15 +83,32 @@ number_of_days = 10
 main_query1 = DB[:visits].group_and_count{ date(created_at) }.filter(:link_short => short)
 main_query2 = DB[:visits].group_and_count{ created_at.cast(Date) }.filter(:link_short => short)
 
+# LONG VERSION OF THE ABOVE QUERY:
+main_query_test = DB[:visits].select{ [date(created_at), count(:*){}] }.
+                              filter(:link_short => short).group{ date(created_at) }
 
 query1 = main_query1.filter(:created_at => (Date.today - number_of_days) .. (Date.today + 1))
 query2 = main_query2.filter(:created_at => (Date.today - number_of_days) .. (Date.today + 1))
+
+query_test = main_query_test.filter(:created_at => (Date.today - number_of_days) .. (Date.today + 1))
 
 
 p query1
 p query1.all
 p query2
 p query2.all
+
+puts "Test query: --------------------------------"
+p query_test
+p query_test.all
+# SELECT date(`created_at`), count(*) 
+# FROM `visits` 
+# WHERE ((`link_short` = 'example') AND 
+#        (`created_at` >= '2012-06-12') AND (`created_at` <= '2012-06-23')) 
+# GROUP BY date(`created_at`)
+
+# => [{:date=>#<Date: 2012-06-22 (4912201/2,0,2299161)>, :count=>2}]
+
 
 # SQLite
 

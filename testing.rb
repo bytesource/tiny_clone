@@ -319,10 +319,127 @@ DB.transaction do
   # SELECT * FROM "visits" WHERE (("country" = 'Germany') AND ("country" = 'Holland'))
   
   puts "Virtual Row Blocs ==================================="
+  # VirtualRows use METHOD_MISSING to handle almost all method calls.
+  
+  # http://sequel.rubyforge.org/rdoc/files/doc/virtual_rows_rdoc.html
   # If a block is passed to filter, it is treated as a virtual row block:
+  # Dataset methods filter, order, and select all take blocks that are referred to as virtual row blocks. 
+  # Many other dataset methods pass the blocks they are given into one of those three methods, 
+  # so there are actually many Sequel::Dataset methods that take virtual row blocks.
   
-  p Url.filter{ id < 3}
+  # Evaluated in the context of an instance of Sequel::SQL::VirtualRow (via instance_eval)
+  p Url.filter{ id < 3}  
+  # NOTE: If there is a variable 'id' in the surrounding scope,
+  #       the call to the method 'id' needs to be as follows: 
+  p Url.filter{ id() < 3}
   # SELECT * FROM "urls" WHERE ("id" < 3)
+  # Returns: SQL::Identifiers
+  
+  
+  # Block called with an instance of Sequel::SQL::VirtualRow ('row' in this example):
+  p Url.filter{ |row| row.id < 3}
+  # "SELECT * FROM \"urls\" WHERE (\"id\" < 3)"
+  # NOTE:
+  # You usually use instance evaled procs UNLESS you need to 
+  # call methods on the receiver of the SURROUNDING SCOPE inside the proc.
+  
+  p Url.filter{ urls__id < 3}
+  p Url.filter{ |o| o.urls__id < 3}
+  # "SELECT * FROM \"urls\" WHERE (\"urls\".\"id\" < 3)"
+  # Returns: SQL::QualifiedIdentifiers
+  
+  puts "Calling SQL functions"
+  p Url.filter{ |row| row.function(1, row.id) < 3}
+  # "SELECT * FROM \"urls\" WHERE (function(1, \"id\") < 3)"
+  # Returns: SQL::Functions
+  
+  # NOTE: 
+  # If the SQL function does not accept any arguments, you need to provide an empty block to the method 
+  # to distinguish it from a call that will produce an SQL::Identifier:
+  p Url.filter{ |row| row.function{} < 3}
+  # "SELECT * FROM \"urls\" WHERE (function() < 3)"
+  
+  puts "Using the wildcard * in a function call"
+  # 1) make :* the sole argument to the method
+  # 2) provide an empty block to the method:
+  p Url.select{ count(:*){} }
+  # "SELECT count(*) FROM \"urls\"
+  
+  puts "Using the DISTICT keyword"
+  # 1) make :distinct the first argument of the method
+  # 2) add all additional arguments
+  # 3) provide an empty block
+  p Visit.select{ count(:distinct, country){} }
+  # SELECT count(DISTINCT \"country\") FROM \"visits\"
+  p Visit.select{ count(:distinct, country, ip){} }
+  # "SELECT count(DISTINCT \"country\", \"ip\") FROM \"visits\"
+  
+  puts "SQL::WindowFunctions - SQL window function calls"
+  # -- make :over the first argument of the method call, 
+  # -- with an optional hash as the second argument
+  
+  # ds.select{|o| o.rank(:over){}}
+  # ds.select{rank(:over){}}
+  # SELECT rank() OVER ()
+  # ds.select{|o| o.count(:over, :*=>true){}}
+  # ds.select{count(:over, :*=>true){}}
+  # SELECT count(*) OVER ()
+
+ds.select{|o| o.sum(:over, :args=>o.col1, :partition=>o.col2, :order=>o.col3){}}
+ds.select{sum(:over, :args=>col1, :partition=>col2, :order=>col3){}}
+# SELECT sum(col1) OVER (PARTITION BY col2 ORDER BY col3)
+  
+  puts "Math operators"
+  # ds.select{|o| o.-(1, o.a).as(b)}
+  # ds.select{self.-(1, a).as(b)}
+  # SELECT (1 - a) AS b
+  
+  puts "Boolean operators"
+  
+ # ds.where{|o| o.&({:a=>:b}, :c)}
+ # ds.where{self.&({:a=>:b}, :c)}
+ # WHERE ((a = b) AND c)
+ 
+ # The ~ method is defined to do inversion:
+
+ # ds.where{|o| o.~({:a=>1, :b=>2})}
+ # ds.where{self.~({:a=>1, :b=>2})}
+ # WHERE ((a != 1) OR (b != 2))
+  
+  
+  puts 'Inequality Operators'
+  # ds.where{|o| o.>(1, :c)}
+  # ds.where{self.>(1, :c)}
+  # WHERE (1 > c)
+  
+  puts "Literal Strings"
+  # The backtick operator can be used inside an instance-evaled virtual row block to 
+  # create a literal string:
+
+  # ds.where{a > `some SQL`}
+  # WHERE (a > some SQL)"
+ 
+ 
+  puts "Returning multiple values from 'select' or 'order'"
+  # Return a single array
+  p Url.select{ [original, link_short]}
+  # "SELECT \"original\", \"link_short\" FROM \"urls\"
+  
+  # ds.select{[column1, sum(column2).as(sum)]}
+  # SELECT column1, sum(column2) AS sum
+  
+  puts "Alternative Description of the VirtualRow method call rules"
+  # 1) If a block is given:
+  #    -- The block is currently not called. This may change in a future version.
+  #    -- If there are no arguments, an SQL::Function with the name of method used, and no arguments.
+  #    -- If the first argument is :*, an SQL::Function is created with a single wildcard argument (*).
+  #    -- If the first argument is :distinct, an SQL::Function is created with the keyword DISTINCT prefacing all remaining arguments.
+  #    -- If the first argument is :over, the second argument if provided should be a hash of options to pass to SQL::Window. The options hash can also contain :*=>true to use a wildcard argument as the function argument, or :args=>... to specify an array of arguments to use as the function arguments.
+
+  # If a block is not given:
+  # -- If there are arguments, an SQL::Function is returned with the name of the method used and the arguments given.
+  # -- If there are no arguments and the method contains a double underscore, split on the double underscore and return an SQL::QualifiedIdentifier with the table and column.
+  # -- Otherwise, create an SQL::Identifier with the name of the method.
   
   
   
@@ -330,11 +447,8 @@ DB.transaction do
   
   
   
-  
-  
-  
-end
+end  
 
 
-# During Testing:
+
 DB.drop_table(:urls, :visits, :links)
