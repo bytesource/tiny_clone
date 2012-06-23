@@ -2,6 +2,7 @@ require_relative 'database/connection'
 require_relative 'database/tables'  # for SQLite in-memory database 
 require_relative 'database/associations'
 require 'date'
+require 'pp'
 
 
 puts "Generating short url:"
@@ -56,11 +57,9 @@ DB.transaction do
   visit1 = Visit.create(:ip => '23.34.56.43', :country => 'China', :created_at => Time.now)
   visit2 = Visit.create(:ip => '23.34.56.44', :country => 'Germany', :created_at => Time.now)
   visit3 = Visit.create(:ip => '23.34.56.46', :country => 'Germany', :created_at => Time.now)
-  [visit1, visit2, visit3].each { |v| link.add_visit(v) }
+  visit4 = {:ip => '23.34.56.46', :country => 'Holland', :created_at => Time.now} # Just a hash
+  [visit1, visit2, visit3, visit4].each { |v| link.add_visit(v) }
   
-  visit3 = {:ip => '23.34.56.46', :country => 'Holland', :created_at => Time.now} # Just a hash
-  
-  link.add_visit(visit3)  # a visit object will be created from the provided hash
   
   # link.remove_visit(visit3)
   link.remove_visit(visit2)
@@ -306,7 +305,13 @@ DB.transaction do
   p Visit.filter(:link_short => 'youtube', :ip => '23.34.56.46')  # a AND b
   # #<Sequel::Postgres::Dataset: 
   # "SELECT * FROM \"visits\" WHERE ((\"link_short\" = 'youtube') AND (\"ip\" = '23.34.56.46'))">
-
+  
+  puts "Alternative with a block"
+  p Visit.filter(:link_short => 'youtube'){ id < 4 } # ANDed together
+  # "SELECT * FROM \"visits\" WHERE ((\"link_short\" = 'youtube') AND (\"id\" < 4))"
+  # NOTE:
+  # As for the block, see 'Virtual Row Blocs' below for details.
+  
   p Visit.filter(:id=>[1, 2]).all   # a AND b
   # "SELECT * FROM \"visits\" WHERE (\"id\" IN (1, 2))"
   # [#<Visit @values={:id=>2, ...}>, #<Visit @values={:id=>1, ...}>]
@@ -317,6 +322,32 @@ DB.transaction do
   # This, however, does not make much sense in most cases:
   p Visit.filter([[:country, 'Germany'], [:country, 'Holland']]).all # a AND b
   # SELECT * FROM "visits" WHERE (("country" = 'Germany') AND ("country" = 'Holland'))
+  
+  puts "Symbols =============="
+  # If you have a boolean column in the database, and you want only true values, 
+  # you can just provide the column symbol to filter:
+
+  # Artist.where(:retired)
+  # SELECT * FROM artists WHERE retired
+  
+  puts "SQL::Expression --------------------------" 
+  # Sequel has a DSL that allows easily creating SQL expressions. 
+  # These SQL expressions are instances of 
+  # -- subclasses of Sequel::SQL::Expression. 
+  
+  # Artist.filter(:name.like('Y%'))
+  # SELECT * FROM artists WHERE name LIKE 'Y%'
+  # => Returns a Sequel::SQL::BooleanExpression object, which is used directly in the filter.
+  
+  # You can use the DSL to create arbitrarily complex expressions. SQL::Expression objects support the & operator for AND, the | operator for OR, and the ~ operator for inversion:
+
+  # Artist.filter(:name.like('Y%') & ({:b=>1} | ~{:c=>3}))
+  # SELECT * FROM artists WHERE name LIKE 'Y%' AND (b = 1 OR c != 3)
+  # You can combine these expression operators with the virtual row support:
+  
+  # Artist.filter{(a > 1) & ~((b(c) < 1) | d)}
+  # SELECT * FROM artists WHERE a > 1 AND b(c) >= 1 AND NOT d
+  
   
   puts "Virtual Row Blocs ==================================="
   # VirtualRows use METHOD_MISSING to handle almost all method calls.
@@ -385,9 +416,9 @@ DB.transaction do
   # ds.select{count(:over, :*=>true){}}
   # SELECT count(*) OVER ()
 
-ds.select{|o| o.sum(:over, :args=>o.col1, :partition=>o.col2, :order=>o.col3){}}
-ds.select{sum(:over, :args=>col1, :partition=>col2, :order=>col3){}}
-# SELECT sum(col1) OVER (PARTITION BY col2 ORDER BY col3)
+  # ds.select{|o| o.sum(:over, :args=>o.col1, :partition=>o.col2, :order=>o.col3){}}
+  # ds.select{sum(:over, :args=>col1, :partition=>col2, :order=>col3){}}
+  # SELECT sum(col1) OVER (PARTITION BY col2 ORDER BY col3)
   
   puts "Math operators"
   # ds.select{|o| o.-(1, o.a).as(b)}
@@ -440,6 +471,99 @@ ds.select{sum(:over, :args=>col1, :partition=>col2, :order=>col3){}}
   # -- If there are arguments, an SQL::Function is returned with the name of the method used and the arguments given.
   # -- If there are no arguments and the method contains a double underscore, split on the double underscore and return an SQL::QualifiedIdentifier with the table and column.
   # -- Otherwise, create an SQL::Identifier with the name of the method.
+  
+  
+  puts "Strings with Placeholders +++++++++++++++++++++++++++++++"
+  
+  pp Visit.filter("country LIKE ? AND link_short = ?", 'I%', 'youtube').all
+  # "SELECT * FROM \"visits\" WHERE (country LIKE 'I%' AND link_short = 'youtube')"
+  # [#<Visit @values={:id=>1, :ip=>"23.34.56.43", :country=>"Island", ...}>,
+  #<Visit @values={:id=>3, :ip=>"23.34.56.46", :country=>"Island", ...}>,
+  #<Visit @values={:id=>4, :ip=>"23.34.56.46", :country=>"Island", ...}>]
+  
+  
+  # NOTE:
+  # However, if you are using any untrusted input, you should definitely be using placeholders.
+  short = "I am evil" 
+  
+  Visit.filter("id = #{short}") # Don't do this!
+  Visit.filter("id = ?", short) # Do this instead
+  Visit.filter(:id => short)    # Even better
+  
+  
+  puts "Interting"
+  # NOTE: 
+  # 'invert', e.g. 'filter(:id => 5).invert', can be used, but it is not very practical, 
+  # as it inverts the expressions off ALL filters in a query.
+  
+  p Visit.filter(:country => 'Island').exclude{ id > 5 }
+  # "SELECT * FROM \"visits\" WHERE ((\"country\" = 'Island') AND (\"id\" <= 5))"
+  p Visit.exclude(:id => 3)
+  # "SELECT * FROM \"visits\" WHERE (\"id\" != 3)"
+  p Visit.exclude(:id => [3, 5])
+  # "SELECT * FROM \"visits\" WHERE (\"id\" NOT IN (3, 5))"
+  
+  
+  puts "Removing"
+  # To remove all existing filters, use unfiltered:
+  p Visit.filter(:id=>1).filter(:country => 'Germany').unfiltered
+  # "SELECT * FROM \"visits\"
+  
+  
+  puts "Ordering ==================================="
+  # NOTE:
+  # Unlike filter, order replaces an existing order,
+  # it does not append to an existing order:
+  p Visit.order(:id).order(:country, :ip)
+  # "SELECT * FROM \"visits\" ORDER BY \"country\", \"ip\""
+  
+  # However, you can add or prepend a column to order in the following way:
+  # Add:
+  p Visit.order(:country, :ip).order_append(:id)
+  # "SELECT * FROM \"visits\" ORDER BY \"country\", \"ip\", \"id\""
+  # Prepend:
+  p Visit.order(:country, :ip).order_prepend(:id)
+  # "SELECT * FROM \"visits\" ORDER BY \"id\", \"country\", \"ip\""
+  p Visit.order(:country).order_prepend(:id, :link_short)
+  # ORDER BY \"id\", \"link_short\", \"country\""
+ 
+  
+  puts "Reversing ====================================="
+  # Just like you can invert an existing filter, 
+  # you can reverse an existing order (ASC --> DESC), using reverse:
+  p Visit.order(:id).reverse
+  # "SELECT * FROM \"visits\" ORDER BY \"id\" DESC"
+  
+  # Better: using Symbol#desc
+  p Visit.order(:id.desc)
+  # "SELECT * FROM \"visits\" ORDER BY \"id\" DESC"
+  p Visit.order(:id.asc)
+  # "SELECT * FROM \"visits\" ORDER BY \"id\" ASC"
+  
+  puts "Removing ---------------"
+  # Remove orders with unordered
+  p Visit.order(:id).order(:country, :ip).unordered
+  # "SELECT * FROM \"visits\""
+  
+  puts "\nSelected Columns ==========================="
+  # Manipulating the columns selected.
+  # Main method is select.
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   
   
   

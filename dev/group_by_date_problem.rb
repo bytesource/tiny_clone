@@ -77,6 +77,14 @@ link2.add_visit(visit3)
 # Querying
 # =============
 
+# We need the following SQL query:
+
+# SELECT date(created_at) as date, count(*) as count
+# FROM visits
+# WHERE link_short = '#{short}' and
+#       created_at between CURRENT_DATE-#{number_of_days} and CURRENT_DATE+1
+# GROUP BY date(created_at)
+
 short = 'example'
 number_of_days = 10
 
