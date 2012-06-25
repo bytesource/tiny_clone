@@ -549,15 +549,63 @@ DB.transaction do
   # Manipulating the columns selected.
   # Main method is select.
   
+  # NOTE: 
+  # If you are dealing with model objects, 
+  # -- you'll want to include the primary key if you want to update or destroy the object. 
+  # -- You'll also want to include any keys (primary or foreign) 
+  # related to associations you plan to use.
+
+  # => If a column is not selected, and you attempt to access it, you will get nil:
+  v = Visit.select(:country).first
+  # SELECT "country" FROM "visits" LIMIT 1    # ip not selected
+  p v[:ip]
+  # => nil                                    # ip not selected
+  
+  # Like order, select replaces the existing selected columns:
+  p Visit.select(:country).select(:ip).select(:link_short)
+  # "SELECT \"link_short\" FROM \"visits\""
+  
+  p Visit.select(:country).select(:ip).select(:link_short).select_append(:country)
+  # "SELECT \"link_short\", \"country\" FROM \"visits\""
+  
+  p Visit.select(:country).select(:ip).select(:link_short).select_all
+  # "SELECT * FROM \"visits\""
+  
+  puts "\nDISTINCT"
+  
+  p Visit.distinct.select(:country) 
+  # "SELECT DISTINCT \"country\" FROM \"visits\"">
+  p Visit.select(:country).distinct
+  # "SELECT DISTINCT \"country\" FROM \"visits\"">
+  
+  puts "\nLimit and Offset"
+  # You can limit the dataset to a given number of rows using limit:
+  
+  p Visit.limit(3)
+  # "SELECT * FROM \"visits\" LIMIT 3">
+  p Visit.limit(3, 5)
+  # "SELECT * FROM \"visits\" LIMIT 3 OFFSET 5">  # items 6 to 8
+  p Visit.limit(3, 5).unlimited                   # reset limit 
+  # "SELECT * FROM \"visits\"">
   
   
+  puts "\n Grouping"
+  # The SQL GROUP BY clause is used to 
+  # -- COMBINE multiple ROWS 
+  # -- based on the VALUES of a given GROUP OF COLUMNS.
   
   
+  p Visit.group(:country)
+  # "SELECT * FROM \"visits\" GROUP BY \"country\""
   
-  
-  
-  
-  
+  p Visit.group_and_count{ date(created_at) }
+  # "SELECT date(\"created_at\"), count(*) AS \"count\" FROM \"visits\" GROUP BY date(\"created_at\")"
+  # This one is equivalent (except for not using the AS clause):
+  p Visit.select{ [date(created_at), count(:*){}] }.group{ date(created_at) }
+  # "SELECT date(\"created_at\"), count(*) FROM \"visits\" GROUP BY date(\"created_at\")"
+  # Also using the AS clause:
+  p Visit.select{ [date(created_at), count(:*){}.as(:count)] }.group{ date(created_at) }
+  # "SELECT date(\"created_at\"), count(*) AS \"count\" FROM \"visits\" GROUP BY date(\"created_at\")">
   
   
   
