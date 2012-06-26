@@ -54,8 +54,13 @@ DB.create_table? :urls do
   String      :original, :size => 255, :unique => true, :null => false
   # foreign_key is integer by default, but here refers to a string.
   # http://sequel.rubyforge.org/rdoc/classes/Sequel/Schema/Generator.html#method-i-foreign_key
-  foreign_key :link_short, :links, :type => String, :on_delete => :cascade
+  foreign_key :link_short, :links, :type => String, :on_update => :cascade, :on_delete => :cascade # *
 end
+
+# * CASCADE
+# If in the parent table (links) the row containing the primary key 'x' gets deleted,
+# all associated rows of 'x' in the child tables get also deleted.
+# http://sequel.rubyforge.org/rdoc/files/doc/schema_modification_rdoc.html
 
 
 
@@ -65,7 +70,7 @@ DB.create_table? :visits do
   inet        :ip,         :null => false
   String      :country,    :size => 255
   DateTime    :created_at, :null => false
-  foreign_key :link_short, :links, :type => String, :on_delete => :cascade
+  foreign_key :link_short, :links, :type => String, :on_update => :cascade, :on_delete => :cascade
 end
 
 # CREATE TABLE "links"

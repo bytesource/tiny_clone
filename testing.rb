@@ -79,6 +79,7 @@ DB.transaction do
   # :created_at=>2012-06-17 15:23:03 +0800, :link_short=>nil}>]
   puts '________________'
   
+  
   puts "all visits as records:"
   p link.visits
   # [#<Visit @values={:id=>1, :ip=>"23.34.56.43", :country=>"China", 
@@ -146,6 +147,8 @@ DB.transaction do
   
   link.visits_dataset.update(:country => "Island")
   # UPDATE `visits` SET `country` = 'Island' WHERE (`visits`.`link_short` = 'youtube')
+  # NOTE:
+  # For more about updating (in combination with CASCASDE), see 'Updating and Deleting' below.
   p Visit.all
   # [#<Visit @values={:id=>1, :ip=>"23.34.56.43", :country=>"Island", 
   #  :created_at=>2012-06-17 16:25:54 +0800, :link_short=>"youtube"}>, 
@@ -230,6 +233,8 @@ DB.transaction do
   # Not called when eager loading via eager_graph, but called when eager loading via eager.
   
   p link_new.visits
+  
+  
   
   
   puts "QUERYING ---------------------"
@@ -597,6 +602,8 @@ DB.transaction do
   
   p Visit.group(:country)
   # "SELECT * FROM \"visits\" GROUP BY \"country\""
+  p Visit.group(:country).ungrouped
+  # "SELECT * FROM \"visits\""
   
   p Visit.group_and_count{ date(created_at) }
   # "SELECT date(\"created_at\"), count(*) AS \"count\" FROM \"visits\" GROUP BY date(\"created_at\")"
@@ -608,13 +615,71 @@ DB.transaction do
   # "SELECT date(\"created_at\"), count(*) AS \"count\" FROM \"visits\" GROUP BY date(\"created_at\")">
   
   
+  puts "\nUpdating and Deleting Rows (and Testing CASCADE) ======================="
   
+  Link.filter(:short => 'youtube').update(:short => 'changed')
+  # UPDATE "links" SET "short" = 'changed' WHERE ("short" = 'youtube')
+  # because of :on_update => cascade, the foreign keys of the associated
+  # rows in the child tables get also updated.
   
+  p DB[:links].filter(:short => 'changed').all.size        # => 1
+  p DB[:visits].filter(:link_short => 'changed').all.size  # => 5
+  p DB[:urls].filter(:link_short => 'changed').all.size    # => 1
   
+  p Link.filter(:short => 'changed').delete  # delete executes code on the database
+  # DELETE FROM "links" WHERE ("short" = 'changed')
   
+  p DB[:links].filter(:short => 'changed').all.size        # => 0
+  p DB[:visits].filter(:link_short => 'changed').all.size  # => 0
+  p DB[:urls].filter(:link_short => 'changed').all.size    # => 0
   
+  # Note: All associated rows from the 'urls' and 'visits' tables have been deleted due to 
+  # the following CASCADE constraint on the foreign key:
+  # foreign_key :link_short, :links, :type => String, :on_delete => :cascade
   
+  puts "/nHaving"
+  # The SQL HAVING clause is similar to the WHERE clause, 
+  # except that FILTERS THE RESULTS AFTER THE GROUPING HAS BEEN APPLIED,
+  # instead of before. 
   
+  p Visit.group_and_count{ date(created_at) }.having{ count >= 2}
+  # "SELECT date(\"created_at\"), count(*) AS \"count\" FROM \"visits\" 
+  # GROUP BY date(\"created_at\") 
+  # HAVING (\"count\" >= 2)">
+
+  # NOTE:
+  # If you have an existing HAVING clause on your dataset, 
+  # then 'filter' will ADD to the HAVING clause instead of the WHERE clause:
+  p Visit.group_and_count{ date(created_at) }.having{ count >= 2}.filter { count <= 10}
+  # "SELECT date(\"created_at\"), count(*) AS \"count\" FROM \"visits\" 
+  # GROUP BY date(\"created_at\") 
+  # HAVING ((\"count\" >= 2) AND (\"count\" <= 10))"
+  
+  # NOTE:
+  # UNLIKE 'filter', 'where' always affects the WHERE clause:
+  p Visit.group_and_count{ date(created_at) }.having{ count >= 2}.where(:name.like('I%'))
+  # "SELECT date(\"created_at\"), count(*) AS \"count\" FROM \"visits\" 
+  # WHERE (\"name\" LIKE 'I%') 
+  # GROUP BY date(\"created_at\") 
+  # HAVING (\"count\" >= 2)"
+  
+  # NOTE:
+  # BOTH the WHERE clause and the HAVING clause are removed by 'unfiltered' in the same query:
+  p Visit.group_and_count{ date(created_at) }.having{ count >= 2}.where(:name.like('I%')).unfiltered
+  # "SELECT date(\"created_at\"), count(*) AS \"count\" FROM \"visits\" 
+  # GROUP BY date(\"created_at\")"
+  
+  puts "\n Joins ============================" 
+  # Different SQL JOINs
+  
+  # (INNER) JOIN: 
+  # -- Return rows where there is at least one match in both tables
+  # LEFT (OUTER) JOIN: 
+  # -- Return all rows from the left table, even if there are no matches in the right table
+  # RIGHT (OUTER) JOIN: -- 
+  # Return all rows from the right table, even if there are no matches in the left table
+  # FULL (OUTER) JOIN:
+  # -- Return rows when there is a match in one of the tables
   
   
   
