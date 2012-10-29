@@ -35,9 +35,9 @@ p created_at_function
 # create_table?   CREATE TABLE IF NOT EXISTS
 # http://sequel.rubyforge.org/rdoc-plugins/classes/Sequel/Plugins/Schema/ClassMethods.html
 
-# NOTE: parent table 'links' has to be the first as the following tables reference its
+# NOTE: parent table :links has to be the first as the following tables reference its
 #       primary key.
-#       Likewise, drop table links using 'cascade': drop table links cascade;
+#       Likewise, drop table :links using 'cascade': DROP TABLE LINKS CASCADE;
 DB.create_table? :links do
   String      :short,      :primary_key => true, :size => 15
   DateTime    :created_at, :null => false        # 1)

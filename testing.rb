@@ -34,17 +34,26 @@ DB.transaction do
   # link = Link.create(:short => key)    # :default => created_at_function.lit
   # [{:short=>"youtube", :created_at=>2012-06-17 16:08:30 +0800}]
   link = Link.create(:short => key, :created_at => Time.now)
+  # INSERT INTO "links" ("short", "created_at") VALUES ('youtube', '2012-10-28 17:03:13.241424+0800')
   p DB[:links].all
   # [{:short=>"youtube", :created_at=>2012-06-17 16:06:51 +0800}]
 
   # #association= sets the relevant foreign key to be the same as the primary key of the other object
   link.url = Url.new(:original => 'http://www.sovonexxx.com') # Url object gets saved 1)
+  # The above line of code leads to the execution of the following 3 SQL statements:
   # 1) Insert without foreign key
-  # INSERT INTO "urls" ("original") VALUES ('http://www.sovonexxx.com') 
+  #    INSERT INTO "urls" ("original") VALUES ('http://www.sovonexxx.com') 
   # 2) Set foreign key to NULL
-  # UPDATE "urls" SET "link_short" = NULL WHERE (("link_short" = 'youtube') AND ("id" != 1))
+  #    UPDATE "urls" SET "link_short" = NULL WHERE (("link_short" = 'youtube') AND ("id" != 1)) // I think this should be "id" != 0
   # 3) Set foreign key to the correct value from the Links table
-  # UPDATE "urls" SET "original" = 'http://www.sovonexxx.com', "link_short" = 'youtube' WHERE ("id" = 1)
+  #    UPDATE "urls" SET "original" = 'http://www.sovonexxx.com', "link_short" = 'youtube' WHERE ("id" = 1)
+
+  # NOTE:
+  # The following are the SQL statements that where actually output using Postgres as the database: 
+  # 1) Set all references to the foreign key 'youtube' to NULL
+  #    UPDATE "urls" SET "link_short" = NULL WHERE (("link_short" = 'youtube') AND ("id" IS NOT NULL))
+  # 2) Insert new URL row, setting both value and foreign key.
+  #    INSERT INTO "urls" ("original", "link_short") VALUES ('http://www.sovonexxx.com', 'youtube') 
 
   # NOTE on #association=
   # -- many_to_one associations: does NOT save the current object  1)
@@ -108,20 +117,27 @@ DB.transaction do
   #<Sequel::SQLite::Dataset: "SELECT * FROM `links` WHERE (`links`.`short` = 'youtube')">
   p Url[1]
   #<Url @values={:id=>1, :original=>"http://www.sovonexxx.com", :link_short=>"youtube"}>
-  p Link.filter(:url => Url[1]).all
+  # p Link.filter(:url => Url[1]).all
   # [#<Link @values={:short=>"youtube", :created_at=>2012-06-16 15:35:16 +0800}>]
   puts '----------------------'
   
   # NOTE: 
   # -- :url = the ASSOCIATION NAME from Link: one_to_one :url, :key => :link_short
-  # Record returned: All rows from Links where the primary key matched Url[xx] foreign key.
+  # Record returned: All rows from Links where the foreign key of Url[xx] matches the primary key of Links.
+  
+  # NOTE: Does not seem to work with Postgres:
+  p Link.filter(:url => Url[1])
+  # "SELECT * FROM \"links\" WHERE (\"url\" IS NULL)"
+  # Links does not have a 'url' column, so the following returns an error:
+  # p Link.filter(:url => Url[1]).all
+  # PG::Error: ERROR: column "url" does not exist (Sequel::DatabaseError)
   
   
   p Link.filter(:visits => Visit[1])
   #<Sequel::SQLite::Dataset: "SELECT * FROM `links` WHERE (`links`.`short` = 'youtube')">
   p Visit[1]
   #<Visit @values={:id=>1, :ip=>"23.34.56.43", :country=>"China", :created_at=>2012-06-16 15:32:17 +0800, :link_short=>"youtube"}>
-  p Link.filter(:visits => Visit[1]).all
+  # p Link.filter(:visits => Visit[1]).all  # => error in Postgres: column "visits" does not exist
   # [#<Link @values={:short=>"youtube", :created_at=>2012-06-16 15:33:42 +0800}>]
   puts '---------------------------'
   
@@ -135,13 +151,13 @@ DB.transaction do
   puts 'one_to_many'
   p Visit.filter(:country => 'Germany').filter(:country => 'China') # A AND B 
   # #<Sequel::SQLite::Dataset: "SELECT * FROM `visits` WHERE ((`country` = 'Germany') AND (`country` = 'China'))">
-  # This does not return any record in this case, obviously
+  # This query, obviously, does not return any record.
   
   puts "Reflection"
   # http://sequel.rubyforge.org/rdoc/files/doc/reflection_rdoc.html
   # NOTE: Should not include the primary key index, functional indexes, or partial indexes.
   p DB.indexes(:url)
-  {}
+  # {}
   p DB.database_type
   # :sqlite
   
@@ -206,8 +222,9 @@ DB.transaction do
   # triggers :after_add:
   link.add_visit(visit_new)
   # Visit #<Visit @values={:id=>5, :ip=>"23.34.56.43", :country=>"Costa Rica", 
-  # :created_at=>2012-06-18 16:00:12 +0800, :link_short=>"youtube"}> 
-  # associated to #<Link @values={:short=>"youtube", :created_at=>2012-06-18 16:00:12 +0800}>
+  #       :created_at=>2012-06-18 16:00:12 +0800, :link_short=>"youtube"}> 
+  # associated to 
+  # <Link @values={:short=>"youtube", :created_at=>2012-06-18 16:00:12 +0800}>
  
   short = rand(10 ** 12).to_s(36)
   
@@ -283,7 +300,7 @@ DB.transaction do
   #  "24qwubu6"=>#<Link @values={:short=>"24qwubu6", :created_at=>2012-06-20 10:59:37 +0800}>}
   puts '-------------------------------'
   
-  # Other similar methods that work on a dataset retrieved using SELECT x, y, FROM:
+  # Other similar methods that work on a dataset (retrieved using SELECT x, y, FROM):
   # ::select_hash
   # ::select_hash_groups
   
@@ -317,7 +334,7 @@ DB.transaction do
   # NOTE:
   # As for the block, see 'Virtual Row Blocs' below for details.
   
-  p Visit.filter(:id=>[1, 2]).all   # a AND b
+  p Visit.filter(:id=>[1, 2]).all   # a OR b
   # "SELECT * FROM \"visits\" WHERE (\"id\" IN (1, 2))"
   # [#<Visit @values={:id=>2, ...}>, #<Visit @values={:id=>1, ...}>]
   
@@ -344,7 +361,10 @@ DB.transaction do
   # SELECT * FROM artists WHERE name LIKE 'Y%'
   # => Returns a Sequel::SQL::BooleanExpression object, which is used directly in the filter.
   
-  # You can use the DSL to create arbitrarily complex expressions. SQL::Expression objects support the & operator for AND, the | operator for OR, and the ~ operator for inversion:
+  # You can use the DSL to create arbitrarily complex expressions. SQL::Expression objects support the 
+  # -- & operator for AND, the 
+  # -- | operator for OR, and the 
+  # -- ~ operator for inversion:
 
   # Artist.filter(:name.like('Y%') & ({:b=>1} | ~{:c=>3}))
   # SELECT * FROM artists WHERE name LIKE 'Y%' AND (b = 1 OR c != 3)
@@ -359,7 +379,7 @@ DB.transaction do
   
   # http://sequel.rubyforge.org/rdoc/files/doc/virtual_rows_rdoc.html
   # If a block is passed to filter, it is treated as a virtual row block:
-  # Dataset methods filter, order, and select all take blocks that are referred to as virtual row blocks. 
+  # Dataset methods 'filter', 'order', and 'select' all take blocks that are referred to as virtual row blocks. 
   # Many other dataset methods pass the blocks they are given into one of those three methods, 
   # so there are actually many Sequel::Dataset methods that take virtual row blocks.
   
@@ -392,7 +412,7 @@ DB.transaction do
   # NOTE: 
   # If the SQL function does not accept any arguments, you need to provide an empty block to the method 
   # to distinguish it from a call that will produce an SQL::Identifier:
-  p Url.filter{ |row| row.function{} < 3}
+  p Url.filter{ |row| row.function{} < 3} # function = count(), etc.
   # "SELECT * FROM \"urls\" WHERE (function() < 3)"
   
   puts "Using the wildcard * in a function call"
@@ -467,10 +487,14 @@ DB.transaction do
   puts "Alternative Description of the VirtualRow method call rules"
   # 1) If a block is given:
   #    -- The block is currently not called. This may change in a future version.
-  #    -- If there are no arguments, an SQL::Function with the name of method used, and no arguments.
+  #    -- If there are no arguments, an SQL::Function with the name of method is used, and no arguments.
   #    -- If the first argument is :*, an SQL::Function is created with a single wildcard argument (*).
   #    -- If the first argument is :distinct, an SQL::Function is created with the keyword DISTINCT prefacing all remaining arguments.
-  #    -- If the first argument is :over, the second argument if provided should be a hash of options to pass to SQL::Window. The options hash can also contain :*=>true to use a wildcard argument as the function argument, or :args=>... to specify an array of arguments to use as the function arguments.
+  #    -- If the first argument is :over, the second argument, if provided, should be a hash of options to pass to SQL::Window. The options hash can also contain 
+  #       :*=>true to use a wildcard argument as the function argument, or 
+  #       :args=>... to specify an array of arguments to use as the function arguments.
+  #       :partition=>
+  #       :order=>
 
   # If a block is not given:
   # -- If there are arguments, an SQL::Function is returned with the name of the method used and the arguments given.
@@ -496,12 +520,13 @@ DB.transaction do
   Visit.filter(:id => short)    # Even better
   
   
-  puts "Interting"
+  puts "Inverting"
   # NOTE: 
   # 'invert', e.g. 'filter(:id => 5).invert', can be used, but it is not very practical, 
   # as it inverts the expressions off ALL filters in a query.
-  
+  puts "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
   p Visit.filter(:country => 'Island').exclude{ id > 5 }
+  # p Visit.filter(:country => 'Island').exclude( id > 5 ) # undefined local variable or method `id' for main:Object (NameError)
   # "SELECT * FROM \"visits\" WHERE ((\"country\" = 'Island') AND (\"id\" <= 5))"
   p Visit.exclude(:id => 3)
   # "SELECT * FROM \"visits\" WHERE (\"id\" != 3)"
@@ -510,14 +535,14 @@ DB.transaction do
   
   
   puts "Removing"
-  # To remove all existing filters, use unfiltered:
+  # To remove ALL existing filters, use unfiltered:
   p Visit.filter(:id=>1).filter(:country => 'Germany').unfiltered
   # "SELECT * FROM \"visits\"
   
   
   puts "Ordering ==================================="
   # NOTE:
-  # Unlike filter, order replaces an existing order,
+  # Unlike filter, order REPLACES an EXISTING ORDER,
   # it does not append to an existing order:
   p Visit.order(:id).order(:country, :ip)
   # "SELECT * FROM \"visits\" ORDER BY \"country\", \"ip\""
@@ -558,7 +583,7 @@ DB.transaction do
   # If you are dealing with model objects, 
   # -- you'll want to include the primary key if you want to update or destroy the object. 
   # -- You'll also want to include any keys (primary or foreign) 
-  # related to associations you plan to use.
+  #    related to associations you plan to use.
 
   # => If a column is not selected, and you attempt to access it, you will get nil:
   v = Visit.select(:country).first
@@ -639,7 +664,7 @@ DB.transaction do
   
   puts "/nHaving"
   # The SQL HAVING clause is similar to the WHERE clause, 
-  # except that FILTERS THE RESULTS AFTER THE GROUPING HAS BEEN APPLIED,
+  # except that it FILTERS the results AFTER THE GROUPING has been APPLIED,
   # instead of before. 
   
   p Visit.group_and_count{ date(created_at) }.having{ count >= 2}
@@ -673,7 +698,7 @@ DB.transaction do
   # Different SQL JOINs
   
   # (INNER) JOIN: 
-  # -- Return rows where there is at least one match in both tables
+  # -- Return rows where there is at least one MATCH IN BOTH tables
   # LEFT (OUTER) JOIN: 
   # -- Return all rows from the left table, even if there are no matches in the right table
   # RIGHT (OUTER) JOIN: -- 

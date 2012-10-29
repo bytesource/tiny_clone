@@ -12,8 +12,9 @@ require 'sequel'
 # --> Database Schema
 
 # If you want to setup a 1-1 relationship between two models,
-# you have to use many_to_one in one model,
-# and one_to_one in the other model. 
+# you have to use 
+# -- many_to_one in one model, and 
+# -- one_to_one in the other model. 
 # http://sequel.rubyforge.org/rdoc/files/doc/association_basics_rdoc.html
 
 # The simplest way to remember is that 
@@ -23,7 +24,8 @@ require 'sequel'
 # -- The other model uses one_to_one:
 class Url < Sequel::Model # Child
  # Assumes :key is :link_id, based on ASSOCIATION name of :link    # A)
- many_to_one :link, :key => :link_short                       # *_to_one  => singular
+ many_to_one :link, # <-- Association name 
+             :key => :link_short                       # *_to_one  => singular
 end
 
 
@@ -39,7 +41,7 @@ end
 # CHILD table  (here: Url, Visit): Foreign key name guessed from the table's ASSOCIATION name.
 
 # According to these rules, the name of the foreign key should be 'link_id'.
-# However, in the schema the foreign key is named 'link_short':
+# However, in my schema the foreign key is named 'link_short':
 # foreign_key :link_short, :links, :type => String, :on_delete => :cascade
 # Therefore we have to manually specify the correct name in the associations using :key
 
@@ -54,6 +56,12 @@ end
 
 # http://sequel.rubyforge.org/rdoc/classes/Sequel/Model/ClassMethods.html#method-i-unrestrict_primary_key
 Link.unrestrict_primary_key
+# Allow the setting of the primary key(s) when using the mass assignment methods. 
+# Using this method can open up security issues, be very careful before using it.
+
+# Artist.set(:id=>1) # Error
+# Artist.unrestrict_primary_key
+# Artist.set(:id=>1) # No Error
 
 
 
