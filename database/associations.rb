@@ -1,4 +1,4 @@
-require 'sequel'
+require_relative 'tables'
 
 # ---------------------------------
 # Setting Associations

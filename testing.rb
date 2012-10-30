@@ -29,6 +29,8 @@ puts '========================='
 Link.unrestrict_primary_key
 
 DB.transaction do
+  
+  # table.create(...)  => creates object and inserts it into the database (INSERT INTO...)
 
   key = 'youtube'
   # link = Link.create(:short => key)    # :default => created_at_function.lit
@@ -39,7 +41,7 @@ DB.transaction do
   # [{:short=>"youtube", :created_at=>2012-06-17 16:06:51 +0800}]
 
   # #association= sets the relevant foreign key to be the same as the primary key of the other object
-  link.url = Url.new(:original => 'http://www.sovonexxx.com') # Url object gets saved 1)
+  link.url = Url.new(:original => 'http://www.sovonexxx.com') # Url object gets saved 1) # new Link instance
   # The above line of code leads to the execution of the following 3 SQL statements:
   # 1) Insert without foreign key
   #    INSERT INTO "urls" ("original") VALUES ('http://www.sovonexxx.com') 

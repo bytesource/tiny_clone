@@ -5,7 +5,7 @@
 # NOTE: Need to add dm-migrations to the list of required gems, otherwise DataMapper::auto_migrate! cannot be found:
 # http://datamapper.lighthouseapp.com/projects/20609/changesets/98f9311d58357c38beb8c779d12be5f0c62fcb72
 # NOTE: Instead of requiring all theses dm-xxx gems, you can just require 'data_mapper' that includes everything you need.
-%w(rubygems sinatra haml uri rest-client xmlsimple ./dirty_words ./database).each do |lib|
+%w(rubygems sinatra haml uri rest-client xmlsimple ./dirty_words ./database/associations).each do |lib|
   require lib
 end
 
@@ -96,45 +96,33 @@ end
 # ======================
 
 class Url
-  include DataMapper::Resource
-  property :id,       Serial
-  property :original, String,  :length => 255
-
-  # Adds an additional column 'link_short' as a foreign key
-  # (The 'short' column is Link's primary key)
-  belongs_to :link
+  
 end
 
 class Link
-  include DataMapper::Resource
-  property :short, String, :key => true
-  property :created_at, DateTime
-  has 1, :url
-  has n, :visits
 
 
   def self.shorten(original, custom=nil)
     # Check if the url is already stored in the database
-    url = Url.first(:original => original)
-    # If the original URL is already shortended, return the shortened link right away.
+    url = Url.select(:original => original).first
+    # If the original URL is already shortened, return the shortened link right away.
     return url.link if url
 
     link = nil
 
     if custom  # not 'nil'
       # Check if the custom url is already stored in the database
-      raise 'Someone has already take this custom URL, sorry' unless Link.first(:short => custom).nil?
+      raise 'Someone has already take this custom URL, sorry' unless Link.select(:short => custom).first.nil?
 
       raise 'This custom URL is not allowed due to profanity' if DIRTY_WORDS.include? custom
 
-      # Everything is ok, go ahead and store the custom url.
-      transaction do |txn|
-        link = Link.new(:short => custom)  # new Link instance
-        link.url = Url.create(:original => original) # link has one url
-        link.save
+      # Everything is OK, go ahead and store the custom URL.
+      DB.transaction do
+        link = Link.create(:short => custom, :created_at => Time.now) # new Link instance
+        link.url = Url.new(:original => original)
       end
     else  # custom = 'nil' => call 'create_link' (creates and stores the shortened link)
-      transaction do |txn|
+      DB.transaction do
         link = create_link(original)
       end
     end
@@ -170,17 +158,8 @@ class Link
 end
 
 class Visit
-  include DataMapper::Resource
-  property :id,           Serial
-  property :created_at,   DateTime
-  property :ip,           IPAddress
-  property :country,      String
-
-  # Adds an additional column 'link_short' as a foreign key
-  # (The 'short' column is Link's primary key)
-  belongs_to :link
-
-  after :create, :set_country
+  # TODO
+  # after :create, :set_country
 
   def set_country
     xml = RestClient.get "http://api.hostip.info/get_xml.php?ip=#{ip}"  # Where does ip come from???
