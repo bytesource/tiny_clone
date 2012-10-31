@@ -70,6 +70,7 @@ DB.transaction do
   visit3 = Visit.create(:ip => '23.34.56.46', :country => 'Germany', :created_at => Time.now)
   visit4 = {:ip => '23.34.56.46', :country => 'Holland', :created_at => Time.now} # Just a hash
   [visit1, visit2, visit3, visit4].each { |v| link.add_visit(v) }
+  p
   
   
   # link.remove_visit(visit3)
@@ -709,7 +710,8 @@ DB.transaction do
   # -- Return rows when there is a match in one of the tables
   
   
-  
+  puts "MAJOR TESTING-----------------------------------------" 
+  p Visit.group_and_count(:country).filter(:link_short => short)
   
 end  
 

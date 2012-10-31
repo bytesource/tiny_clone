@@ -101,8 +101,8 @@ query2 = main_query2.filter(:created_at => (Date.today - number_of_days) .. (Dat
 query_test = main_query_test.filter(:created_at => (Date.today - number_of_days) .. (Date.today + 1))
 
 
-
 puts "Test query: --------------------------------"
+puts "query_test"
 p query_test
 p query_test.all
 # Postgres
@@ -115,8 +115,10 @@ p query_test.all
 
 # => [{:date=>#<Date: 2012-06-22 (4912201/2,0,2299161)>, :count=>2}]
 
+puts "query1"
 p query1
 p query1.all
+puts "query2"
 p query2
 p query2.all
 
@@ -167,6 +169,19 @@ else
   query3 = main_query1.filter{(created_at >= date(Sequel::CURRENT_DATE, "'-? days'".lit(number_of_days.to_i))) & 
                          (created_at <= date(Sequel::CURRENT_DATE,'+1 day'))}
 end
+
+
+puts "count_by_country_with"
+puts "Query:"
+p Visit.group_and_count(:country).filter(:link_short => short)
+# SELECT \"country\", count(*) AS \"count\" 
+# FROM \"visits\" 
+#   WHERE (\"link_short\" = 'example') 
+#   GROUP BY \"country\"
+puts "Output:"
+p Visit.group_and_count(:country).filter(:link_short => short).all
+# [#<Visit @values={:country=>"China", :count=>1}>, #<Visit @values={:country=>"Germany", :count=>1}>]
+
 
 
 

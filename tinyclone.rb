@@ -18,8 +18,11 @@ configure do
   # http://datamapper.org/getting-started.html
 end
 
+
 get '/' do haml :index end
 
+
+# "Create Shortened URL" Route =================================
 # The 'create shortened' URL route is a HTTP POST request to (/).
 # It is used to create the short URL.
 # First, it makes sure that the input is a valid HTTP or HTTPS URL.
@@ -39,6 +42,8 @@ post '/' do
   haml :index
 end
 
+
+# "Short URL" Route ===============================================
 # The short URL route is the one that is most frequently used.
 # Given the short URL, it redirects the user to the original URL.
 # At the same time it records the call as a visit.
@@ -95,11 +100,11 @@ end
 # Data Model
 # ======================
 
-class Url
-  
+class Url < Sequel::Model
+  # Nothing to do here...
 end
 
-class Link
+class Link < Sequel::Model
 
 
   def self.shorten(original, custom=nil)
@@ -119,7 +124,7 @@ class Link
       # Everything is OK, go ahead and store the custom URL.
       DB.transaction do
         link = Link.create(:short => custom, :created_at => Time.now) # new Link instance
-        link.url = Url.new(:original => original)
+        link.url = Url.new(:original => original) # With link.url, Url.new will automatically saved to db.
       end
     else  # custom = 'nil' => call 'create_link' (creates and stores the shortened link)
       DB.transaction do
@@ -131,50 +136,48 @@ class Link
   end
 
   def self.create_link(original)
-    url = Url.create(:original => original)
+    # #create == store in DB (so that we get an id).
+    # This also means that if we need to recurse, this URL row entry's foreign key will be empty.
+    # => abandoned row entry.
+    # => On the next call to #create_link we will get a new id. 
+    url = Url.create(:original => original) 
     # to_s(base=10) → string
     # Returns a string containing the representation of fix radix base (between 2 and 36)
     # 12345.to_s(36)   #=> "9ix
-    short_link = url.id.to_i.to_s(36) # http://stackoverflow.com/questions/6727490/how-do-i-handle-the-wrong-number-of-method-arguments
+    short_link = url.id.to_s(36) # http://stackoverflow.com/questions/6727490/how-do-i-handle-the-wrong-number-of-method-arguments
     # We only proceed if the shortened link is not found in the links table and does not contain any dirty words.
-    if Link.first(:short => short_link).nil? and !DIRTY_WORDS.include?(short_link) # before: 'or'
-      puts "-----------------------------"
-      puts "inside 'if"
-      puts "short: #{short_link}"
-      puts "-----------------------------"
-      link = Link.new(:short => short_link)
+    if Link.select(:short => short_link).first.nil? && !DIRTY_WORDS.include?(short_link) # before: 'or'
+      link     = Link.create(:short => short_link, :created_at => Time.now)
       link.url = url
-      link.save
       return link
-    else  # shortend link either already in database or contains dirty words
-      puts "inside 'else"
-      puts "short: #{short_link}"
-      puts "-----------------------------"
-      link = Link.new(:short => short_link)
-      # Recurse and try again
-      create_link(original)
+    else  # shortened link either already in database or contains dirty words
+      create_link(original) # Recurse and try again
     end
   end
 end
 
-class Visit
-  # TODO
-  # after :create, :set_country
+class Visit < Sequel::Model
+  # http://sequel.rubyforge.org/rdoc/files/doc/model_hooks_rdoc.html
+  def before_create
+    set_country
+    super
+  end
 
   def set_country
-    xml = RestClient.get "http://api.hostip.info/get_xml.php?ip=#{ip}"  # Where does ip come from???
+    xml = RestClient.get "http://api.hostip.info/get_xml.php?ip=#{ip}"  # We get 'ip' from #get_remote_id
     self.country = XmlSimple.xml_in(xml.to_s, 'ForceArray' => false)['featureMember']['Hostip']['countryAbbrev']
     self.save
   end
 
   def self.count_by_date_with(short, num_of_days)
     # Returns an array of Ruby Struct objects
-    # Selects each distinct date with the number of its occurences (number of rows).
+    # Selects each distinct date with the number of its occurrences (number of rows).
     # Chooses those dates that are associated with the correct short (short link) and that
     # were created within the required time frame.
     # use 'select' instead of 'query', which is deprecated.
-    # MYSQL:
-    # visits = repository(:default).adapter.select(<<-QUERY)   # Where does the name 'link_short' (see query below) come from???
+
+    # POSTGRESQL:
+    # visits = DB.fetch(<<-QUERY) 
     # SELECT date(created_at) as date, count(*) as count
     # FROM visits
     #   where link_short = '#{short}' and
@@ -182,43 +185,37 @@ class Visit
     #         CURRENT_DATE+1
     #   group by date(created_at)
     # QUERY
-
-    # POSTGRESQL:
-    visits = repository(:default).adapter.select(<<-QUERY)   # Where does the name 'link_short' (see query below) come from???
-    SELECT date(created_at) as date, count(*) as count
-    FROM visits
-      where link_short = '#{short}' and
-            created_at between CURRENT_DATE-#{num_of_days} and
-            CURRENT_DATE+1
-      group by date(created_at)
-    QUERY
+    
+    # Alternative:
+    visits = Visit.group_and_count{ date(created_at) }.
+                   filter(:link_short => short).
+                   filter(:created_at => (Date.today - number_of_days) .. (Date.today + 1)).all
+    # [{:date=>#<Date: 2012-10-31 (4912463/2,0,2299161)>, :count=>2}]
+    # TODO: Transfer into a set of dates and check dates against set to avoid nested loop below
+ 
     # SQL does not return empty dates, so we need to
     # manually add the dates where there were no visits:
     dates = (Date.today-num_of_days..Date.today)  # Array of Date objects
     results = {}
     dates.each do |date|
-      visits.each do |visit|
+      visits.each do |visit| 
         # Assumes that the date objects in 'dates' and 'visits' are in the same order.
         results[date] = visit.count if     visit.date == date
         results[date] = 0           unless results[date]
       end
 
       result = results.sort.reverse  # <Date> => count hash
-      puts "-------------------"
-      p result
-      puts "-------------------"
-      result
     end
   end
 
-  # Returns an array of Ruby Struct objects (<country>, <count>)
+  # Returns an array of Visit objects
+  # # [#<Visit @values={:country=>"China", :count=>1}>, #<Visit @values={:country=>"Germany", :count=>1}>]
   def self.count_by_country_with(short)
-    repository(:default).adapter.query(<<-QUERY)
-    SELECT country, count(*) as count
-    FROM visits
-      where link_short = '#{short}'
-      group by country
-    QUERY
+  Visits.group_and_count(:country).filter(:link_short => short)
+  # SELECT \"country\", count(*) AS \"count\" 
+  # FROM \"visits\" 
+  #   WHERE (\"link_short\" = 'I am evil') 
+  #   GROUP BY \"country\"
   end
 
   # Returns vertical bar chart that shows the visit count by date.
@@ -226,7 +223,7 @@ class Visit
     visits = count_by_date_with(short, num_of_days) # <Date> => count hash
     data, labels = [], []
 
-    visits.each do |date,count|
+    visits.each do |date, count|
       data   << count
       labels << "#{date.day}/#{date.month}"
     end
@@ -237,34 +234,29 @@ class Visit
     url_core + url_custom
   end
 
-  def self.count_days_bar(short,num_of_days)
-    visits = count_by_date_with(short,num_of_days)
-    data, labels = [], []
-    visits.each {|visit| data << visit[1]; labels << "#{visit[0].day}/#{visit[0].month}" }
-    "http://chart.apis.google.com/chart?chs=820x180&cht=bvs&chxt=x&chco=a4b3f4&chm=N,000000,0,-1,11&chxl=0:|#{labels.join('|')}&chds=0,#{data.sort.last+10}&chd=t:#{data.join(',')}"
-  end
-
 
   # Returns vertical bar chart that shows the visit count by date.
   # map = The geographical zoom-in of the map we want and returns two charts.
-  def self.count_country_char(short, map)    countries, count = [], []
+  def self.count_country_char(short, map)    
+    countries, count = [], []
 
-    # Array of Ruby Struct objects (<country>, <count>)
+    # Array of Visit objects
+    # [#<Visit @values={:country=>"China", :count=>1}>, #<Visit @values={:country=>"Germany", :count=>1}>]
     count_by_country_with(short).each do |visit|
       countries << visit.country
-      count     << visit.count
+      counts     << visit.count
     end
 
     chart = {}
     url_core_map   = "http://chart.apis.google.com/chart?chs=440x220&cht=t&chtm="
-    url_custom_map = "#{map}&chco=FFFFFF,a4b3f4,0000FF&chld=#{countries.join('')}&chd=t:#{count.join(',')}"
+    url_custom_map = "#{map}&chco=FFFFFF,a4b3f4,0000FF&chld=#{countries.join('')}&chd=t:#{counts.join(',')}"
     chart[:map] = url_core_map + url_custom_map
 
     url_core_bar   = "http://chart.apis.google.com/chart?chs=440x220&cht=t&chtm="
-    url_custom_bar = "#{map}&chco=FFFFFF,a4b3f4,0000FF&chld=#{countries.join('')}&chd=t:#{count.join(',')}"
+    url_custom_bar = "#{map}&chco=FFFFFF,a4b3f4,0000FF&chld=#{countries.join('')}&chd=t:#{counts.join(',')}"
     chart[:bar] = url_core_bar + url_custom_bar
 
-    chart
+    chart # {:map => http..., :bar => http...}
   end
 
 

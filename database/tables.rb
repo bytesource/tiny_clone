@@ -68,7 +68,7 @@ end
 DB.create_table? :visits do
   primary_key :id
   inet        :ip,         :null => false
-  String      :country,    :size => 255
+  String      :country,    :size => 255 # set later with 'before_create' hook
   DateTime    :created_at, :null => false
   foreign_key :link_short, :links, :type => String, :on_update => :cascade, :on_delete => :cascade
 end
