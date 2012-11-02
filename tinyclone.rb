@@ -30,7 +30,7 @@ get '/' do haml :index end
 # which is then passed on to the view.
 post '/' do
   uri    = URI::parse(params[:original])
-  custom = params[:custom].empty? ? nil : params[:custom]
+  custom = params[:custom].empty? ? nil : params[:custom] # TODO: Try pinging the site
   # URI::parse('http://www.sovonexxxxxxxx.com')
   # => #<URI::HTTP:0x00000001df60a0 URL:http://www.sovonexxxxxxxx.com>
   # The above URL does not exist, but URI::parse still returns an URI::HTTP object.
@@ -48,18 +48,18 @@ end
 # Given the short URL, it redirects the user to the original URL.
 # At the same time it records the call as a visit.
 get '/:short_url' do
-  return if params[:short_url] == 'favicon.ico'
-  puts "hello I am inside get '/:short_url"
   
-  link = Link
-  # link = Link.first(:short => params[:short_url])    # find entry for short_url (but what if it cannot be found???)
+  short_url = params[:short_url]
+  return if short_url =~ /favicon/
+  link      = Link.filter(:short => short_url).first
+  raise "Invalid short URL '#{short_url}'"  unless link
   ip = get_remote_ip(env)
-  puts '--------------------'
-  puts ip
-  puts '--------------------'
-  link.visits << Visit.create(:ip => ip) # create new Visit object (each Visit object will be one count)
-  link.save
+  
+  puts "before link.add_visits"
+  # Create new Visit object (each Visit object will be one count)
+  link.add_visits(Visit.create(:ip => ip, :created_at => Time.now, :country => "germany")) 
 
+  puts "after link.add_visits"
   # The redirect command in Sinatra normally issues a HTTP 302 response code.
   redirect link.url.original, 301
 end
@@ -79,9 +79,11 @@ def get_remote_ip(env)
   end
 end
 
-['/info/:short_url', '/info/:short_url/:num_of_days', '/info/:short_url/:num_of_days/:map'].each do |path|
+['/info/:short_url', 
+ '/info/:short_url/:num_of_days', 
+ '/info/:short_url/:num_of_days/:map'].each do |path|
   get path do
-    @link = Link.first(:short => params[:short_url])
+    @link = Link.filter(:short => params[:short_url]).first
     raise 'This link has not yet been defined' unless @link
 
     @num_of_days    = (params[:num_of_days] || 15).to_i
@@ -109,7 +111,7 @@ class Link < Sequel::Model
 
   def self.shorten(original, custom=nil)
     # Check if the url is already stored in the database
-    url = Url.select(:original => original).first
+    url = Url.filter(:original => original).first
     # If the original URL is already shortened, return the shortened link right away.
     return url.link if url
 
@@ -117,7 +119,7 @@ class Link < Sequel::Model
 
     if custom  # not 'nil'
       # Check if the custom url is already stored in the database
-      raise 'Someone has already take this custom URL, sorry' unless Link.select(:short => custom).first.nil?
+      raise 'Someone has already take this custom URL, sorry' unless Link.filter(:short => custom).first.nil?
 
       raise 'This custom URL is not allowed due to profanity' if DIRTY_WORDS.include? custom
 
@@ -146,7 +148,7 @@ class Link < Sequel::Model
     # 12345.to_s(36)   #=> "9ix
     short_link = url.id.to_s(36) # http://stackoverflow.com/questions/6727490/how-do-i-handle-the-wrong-number-of-method-arguments
     # We only proceed if the shortened link is not found in the links table and does not contain any dirty words.
-    if Link.select(:short => short_link).first.nil? && !DIRTY_WORDS.include?(short_link) # before: 'or'
+    if Link.filter(:short => short_link).first.nil? && !DIRTY_WORDS.include?(short_link) # before: 'or'
       link     = Link.create(:short => short_link, :created_at => Time.now)
       link.url = url
       return link
@@ -159,7 +161,9 @@ end
 class Visit < Sequel::Model
   # http://sequel.rubyforge.org/rdoc/files/doc/model_hooks_rdoc.html
   def before_create
+    puts "start set_country"
     set_country
+    puts "start set_country"
     super
   end
 
@@ -174,22 +178,21 @@ class Visit < Sequel::Model
     # Selects each distinct date with the number of its occurrences (number of rows).
     # Chooses those dates that are associated with the correct short (short link) and that
     # were created within the required time frame.
-    # use 'select' instead of 'query', which is deprecated.
 
     # POSTGRESQL:
-    # visits = DB.fetch(<<-QUERY) 
-    # SELECT date(created_at) as date, count(*) as count
-    # FROM visits
-    #   where link_short = '#{short}' and
-    #         created_at between CURRENT_DATE-#{num_of_days} and
-    #         CURRENT_DATE+1
-    #   group by date(created_at)
-    # QUERY
+    visits = DB.fetch(<<-QUERY) 
+    SELECT date(created_at) as date, count(*) as count
+    FROM visits
+      where link_short = '#{short}' and
+            created_at between CURRENT_DATE-#{num_of_days} and
+            CURRENT_DATE+1
+      group by date(created_at)
+    QUERY
     
     # Alternative:
-    visits = Visit.group_and_count{ date(created_at) }.
-                   filter(:link_short => short).
-                   filter(:created_at => (Date.today - number_of_days) .. (Date.today + 1)).all
+    # visits = Visit.group_and_count{ date(created_at) }.
+     #               filter(:link_short => short).
+      #              filter(:created_at => (Date.today - num_of_days) .. (Date.today + 1)).all
     # [{:date=>#<Date: 2012-10-31 (4912463/2,0,2299161)>, :count=>2}]
     # TODO: Transfer into a set of dates and check dates against set to avoid nested loop below
  
@@ -221,10 +224,16 @@ class Visit < Sequel::Model
   # Returns vertical bar chart that shows the visit count by date.
   def self.count_days_bar(short, num_of_days)
     visits = count_by_date_with(short, num_of_days) # <Date> => count hash
+    puts "__________________________"
+    require 'pp'
+    p visits
+    visits.each do |elem|
+      p "class: #{elem.class}, value: #{elem}"
+    end
     data, labels = [], []
 
     visits.each do |date, count|
-      data   << count
+      data   << count 
       labels << "#{date.day}/#{date.month}"
     end
 
@@ -237,7 +246,7 @@ class Visit < Sequel::Model
 
   # Returns vertical bar chart that shows the visit count by date.
   # map = The geographical zoom-in of the map we want and returns two charts.
-  def self.count_country_char(short, map)    
+  def self.count_country_chart(short, map)    
     countries, count = [], []
 
     # Array of Visit objects
@@ -250,11 +259,11 @@ class Visit < Sequel::Model
     chart = {}
     url_core_map   = "http://chart.apis.google.com/chart?chs=440x220&cht=t&chtm="
     url_custom_map = "#{map}&chco=FFFFFF,a4b3f4,0000FF&chld=#{countries.join('')}&chd=t:#{counts.join(',')}"
-    chart[:map] = url_core_map + url_custom_map
+    chart[:map]    = url_core_map + url_custom_map
 
     url_core_bar   = "http://chart.apis.google.com/chart?chs=440x220&cht=t&chtm="
     url_custom_bar = "#{map}&chco=FFFFFF,a4b3f4,0000FF&chld=#{countries.join('')}&chd=t:#{counts.join(',')}"
-    chart[:bar] = url_core_bar + url_custom_bar
+    chart[:bar]    = url_core_bar + url_custom_bar
 
     chart # {:map => http..., :bar => http...}
   end
@@ -264,7 +273,7 @@ end
 
 
 # http://stackoverflow.com/a/8517787
-DataMapper.finalize
+# DataMapper.finalize
 
 # enable :inline_templates
 
@@ -286,7 +295,7 @@ __END__
 # Use `enable :inline_templates` or `set :inline_templates, 'path/to/file'`
 # https://github.com/sinatra/sinatra/blob/master/CHANGES
 
-# NOTE: Inline templates defined in the source file that requires sinatra are automatically loaded.
+# NOTE: Inline templates defined in the source file that require sinatra are automatically loaded.
 # Call enable :inline_templates explicitly if you have inline templates in other source files.
 
 
@@ -296,6 +305,7 @@ __END__
   %head
     %title TinyClone
     %link{:rel => 'stylesheet', :href => 'http://www.blueprintcss.org/blueprint/screen.css', :type => 'text/css'}
+    %link{:rel => 'shortcut icon', :href => '/x-favicon.png', :type => 'image/x-icon'}
   %body
     .container
       %p
@@ -312,7 +322,7 @@ __END__
     %br
     Go to
     %a{:href => "/info/#{@link.short}"}
-      = "http://tinyclone.saush.com/info/#{@link.short}"
+      = "/tinyclone.saush.com/info/#{@link.short}"
     to get more information about this link.
 - if env['sinatra.error']
   .error= env['sinatra.error']
