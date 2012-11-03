@@ -26,6 +26,8 @@ class Url < Sequel::Model # Child
  # Assumes :key is :link_id, based on ASSOCIATION name of :link    # A)
  many_to_one :link, # <-- Association name 
              :key => :link_short                       # *_to_one  => singular
+             
+ 
 end
 
 
@@ -33,6 +35,12 @@ class Link < Sequel::Model # Parent
   one_to_one  :url,    :key => :link_short  # A)
   # Assumes :key is :link_id, based on CLASS NAME of Link          # A)
   one_to_many :visits, :key => :link_short  # *_to_many => plural
+  
+  
+  def before_create
+    self.created_at ||= Time.now
+    super
+  end
 end
 
 
@@ -52,6 +60,12 @@ end
 class Visit < Sequel::Model
  # Assumes :key is :link_id, based on ASSOCIATION name of :link    # A)
   many_to_one :link, :key => :link_short   # :link = association name. Seems to determine the setter/getter method names.
+
+
+  def before_create
+    self.created_at ||= Time.now
+    super
+  end
 end
 
 # http://sequel.rubyforge.org/rdoc/classes/Sequel/Model/ClassMethods.html#method-i-unrestrict_primary_key

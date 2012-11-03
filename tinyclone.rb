@@ -48,18 +48,17 @@ end
 # Given the short URL, it redirects the user to the original URL.
 # At the same time it records the call as a visit.
 get '/:short_url' do
-  
+  # TODO: Do not allow http://example.com and http://www.example.com be treated as different addresses
   short_url = params[:short_url]
   return if short_url =~ /favicon/
   link      = Link.filter(:short => short_url).first
   raise "Invalid short URL '#{short_url}'"  unless link
   ip = get_remote_ip(env)
   
-  puts "before link.add_visits"
   # Create new Visit object (each Visit object will be one count)
-  link.add_visits(Visit.create(:ip => ip, :created_at => Time.now, :country => "germany")) 
+  visit = Visit.create(:ip => ip, :created_at => Time.now) # call after_create to set :country
+  link.add_visit(visit) 
 
-  puts "after link.add_visits"
   # The redirect command in Sinatra normally issues a HTTP 302 response code.
   redirect link.url.original, 301
 end
@@ -160,17 +159,18 @@ end
 
 class Visit < Sequel::Model
   # http://sequel.rubyforge.org/rdoc/files/doc/model_hooks_rdoc.html
-  def before_create
+  def after_create
     puts "start set_country"
     set_country
-    puts "start set_country"
     super
   end
 
   def set_country
     xml = RestClient.get "http://api.hostip.info/get_xml.php?ip=#{ip}"  # We get 'ip' from #get_remote_id
-    self.country = XmlSimple.xml_in(xml.to_s, 'ForceArray' => false)['featureMember']['Hostip']['countryAbbrev']
-    self.save
+    country = XmlSimple.xml_in(xml.to_s, 'ForceArray' => false)['featureMember']['Hostip']['countryAbbrev']
+    puts "Country: #{country}, class: #{country.class}"
+    self.country = country 
+    puts "about to end set_country"
   end
 
   def self.count_by_date_with(short, num_of_days)
@@ -201,15 +201,28 @@ class Visit < Sequel::Model
     dates = (Date.today-num_of_days..Date.today)  # Array of Date objects
     results = {}
     dates.each do |date|
-      visits.each do |visit| 
+      visits.each do |visit| # {:date=>#<Date: 2012-11-03 (4912469/2,0,2299161)>, :count=>1}:Hash
         # Assumes that the date objects in 'dates' and 'visits' are in the same order.
-        results[date] = visit.count if     visit.date == date
+        results[date] = visit[:count] if     visit[:date] == date 
         results[date] = 0           unless results[date]
       end
 
       result = results.sort.reverse  # <Date> => count hash
+      puts "Results = #{results}"
+      puts "Results size = #{results.size}"
     end
   end
+    # FIXME:  undefined method `+' for nil:NilClass
+    # Results = {
+    #<Date: 2012-10-19 (4912439/2,0,2299161)>=>0, #<Date: 2012-10-20 (4912441/2,0,2299161)>=>0, 
+    #<Date: 2012-10-21 (4912443/2,0,2299161)>=>0, #<Date: 2012-10-22 (4912445/2,0,2299161)>=>0, 
+    #<Date: 2012-10-23 (4912447/2,0,2299161)>=>0, #<Date: 2012-10-24 (4912449/2,0,2299161)>=>0, 
+    #<Date: 2012-10-25 (4912451/2,0,2299161)>=>0, #<Date: 2012-10-26 (4912453/2,0,2299161)>=>0, 
+    #<Date: 2012-10-27 (4912455/2,0,2299161)>=>0, #<Date: 2012-10-28 (4912457/2,0,2299161)>=>0, 
+    #<Date: 2012-10-29 (4912459/2,0,2299161)>=>0, #<Date: 2012-10-30 (4912461/2,0,2299161)>=>0, 
+    #<Date: 2012-10-31 (4912463/2,0,2299161)>=>0, #<Date: 2012-11-01 (4912465/2,0,2299161)>=>0, 
+    #<Date: 2012-11-02 (4912467/2,0,2299161)>=>0, #<Date: 2012-11-03 (4912469/2,0,2299161)>=>1}
+Results size = 16
 
   # Returns an array of Visit objects
   # # [#<Visit @values={:country=>"China", :count=>1}>, #<Visit @values={:country=>"Germany", :count=>1}>]

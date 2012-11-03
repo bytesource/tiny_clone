@@ -4,6 +4,11 @@ require_relative 'database/associations'
 require 'date'
 require 'pp'
 
+# http://sequel.rubyforge.org/rdoc/files/doc/release_notes/2_2_0_txt.html
+# Attempts to save an invalid Model instance will raise an error by default:
+Sequel::Model.raise_on_save_failure = true  # default
+# Sequel::Model.raise_on_save_failure = true  # returns nil on failure
+
 
 puts "Generating short url:"
 p rand(10 ** 12).to_s(36)
