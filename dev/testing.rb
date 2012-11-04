@@ -1,6 +1,6 @@
-require_relative 'database/connection'
-require_relative 'database/tables'  # for SQLite in-memory database 
-require_relative 'database/associations'
+require_relative '../database/connection'
+require_relative '../database/tables'  # for SQLite in-memory database 
+require_relative '../database/associations'
 require 'date'
 require 'pp'
 

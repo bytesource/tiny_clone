@@ -160,7 +160,6 @@ end
 class Visit < Sequel::Model
   # http://sequel.rubyforge.org/rdoc/files/doc/model_hooks_rdoc.html
   def after_create
-    puts "start set_country"
     set_country
     super
   end
@@ -168,31 +167,28 @@ class Visit < Sequel::Model
   def set_country
     xml = RestClient.get "http://api.hostip.info/get_xml.php?ip=#{ip}"  # We get 'ip' from #get_remote_id
     country = XmlSimple.xml_in(xml.to_s, 'ForceArray' => false)['featureMember']['Hostip']['countryAbbrev']
-    puts "Country: #{country}, class: #{country.class}"
     self.country = country 
-    puts "about to end set_country"
   end
 
   def self.count_by_date_with(short, num_of_days)
-    # Returns an array of Ruby Struct objects
     # Selects each distinct date with the number of its occurrences (number of rows).
     # Chooses those dates that are associated with the correct short (short link) and that
     # were created within the required time frame.
 
     # POSTGRESQL:
-    visits = DB.fetch(<<-QUERY) 
-    SELECT date(created_at) as date, count(*) as count
-    FROM visits
-      where link_short = '#{short}' and
-            created_at between CURRENT_DATE-#{num_of_days} and
-            CURRENT_DATE+1
-      group by date(created_at)
-    QUERY
+    # visits = DB.fetch(<<-QUERY) 
+    # SELECT date(created_at) as date, count(*) as count
+    # FROM visits
+    #   where link_short = '#{short}' and
+    #         created_at between CURRENT_DATE-#{num_of_days} and
+    #         CURRENT_DATE+1
+    #   group by date(created_at)
+    # QUERY
     
     # Alternative:
-    # visits = Visit.group_and_count{ date(created_at) }.
-     #               filter(:link_short => short).
-      #              filter(:created_at => (Date.today - num_of_days) .. (Date.today + 1)).all
+    visits = Visit.group_and_count{ date(created_at) }.
+                   filter(:link_short => short).
+                   filter(:created_at => (Date.today - num_of_days) .. (Date.today + 1)).all
     # [{:date=>#<Date: 2012-10-31 (4912463/2,0,2299161)>, :count=>2}]
     # TODO: Transfer into a set of dates and check dates against set to avoid nested loop below
  
@@ -204,30 +200,18 @@ class Visit < Sequel::Model
       visits.each do |visit| # {:date=>#<Date: 2012-11-03 (4912469/2,0,2299161)>, :count=>1}:Hash
         # Assumes that the date objects in 'dates' and 'visits' are in the same order.
         results[date] = visit[:count] if     visit[:date] == date 
-        results[date] = 0           unless results[date]
+        results[date] = 0             unless results[date]
       end
-
-      result = results.sort.reverse  # <Date> => count hash
-      puts "Results = #{results}"
-      puts "Results size = #{results.size}"
     end
+    results.sort.reverse  # <Date> => count hash
   end
-    # FIXME:  undefined method `+' for nil:NilClass
-    # Results = {
-    #<Date: 2012-10-19 (4912439/2,0,2299161)>=>0, #<Date: 2012-10-20 (4912441/2,0,2299161)>=>0, 
-    #<Date: 2012-10-21 (4912443/2,0,2299161)>=>0, #<Date: 2012-10-22 (4912445/2,0,2299161)>=>0, 
-    #<Date: 2012-10-23 (4912447/2,0,2299161)>=>0, #<Date: 2012-10-24 (4912449/2,0,2299161)>=>0, 
-    #<Date: 2012-10-25 (4912451/2,0,2299161)>=>0, #<Date: 2012-10-26 (4912453/2,0,2299161)>=>0, 
-    #<Date: 2012-10-27 (4912455/2,0,2299161)>=>0, #<Date: 2012-10-28 (4912457/2,0,2299161)>=>0, 
-    #<Date: 2012-10-29 (4912459/2,0,2299161)>=>0, #<Date: 2012-10-30 (4912461/2,0,2299161)>=>0, 
-    #<Date: 2012-10-31 (4912463/2,0,2299161)>=>0, #<Date: 2012-11-01 (4912465/2,0,2299161)>=>0, 
-    #<Date: 2012-11-02 (4912467/2,0,2299161)>=>0, #<Date: 2012-11-03 (4912469/2,0,2299161)>=>1}
-Results size = 16
+    
+
 
   # Returns an array of Visit objects
   # # [#<Visit @values={:country=>"China", :count=>1}>, #<Visit @values={:country=>"Germany", :count=>1}>]
   def self.count_by_country_with(short)
-  Visits.group_and_count(:country).filter(:link_short => short)
+  Visit.group_and_count(:country).filter(:link_short => short).all
   # SELECT \"country\", count(*) AS \"count\" 
   # FROM \"visits\" 
   #   WHERE (\"link_short\" = 'I am evil') 
@@ -237,18 +221,16 @@ Results size = 16
   # Returns vertical bar chart that shows the visit count by date.
   def self.count_days_bar(short, num_of_days)
     visits = count_by_date_with(short, num_of_days) # <Date> => count hash
-    puts "__________________________"
     require 'pp'
-    p visits
-    visits.each do |elem|
-      p "class: #{elem.class}, value: #{elem}"
-    end
     data, labels = [], []
 
     visits.each do |date, count|
       data   << count 
       labels << "#{date.day}/#{date.month}"
     end
+    
+    
+    # FIXME: Avoid nil error on + if array is empty (= where link_short = '#{short}' returns no results)
 
     url_core   = "http://chart.apis.google.com/chart?chs=820x180&cht=bvs&chxt=x&chco=a4b3f4&chm=N,000000,0,-1,11&chxl=0:|"
     url_custom = "#{labels.join('|')}&chds=0,#{data.sort.last+10}&chd=t:#{data.join(',')}"
@@ -260,14 +242,19 @@ Results size = 16
   # Returns vertical bar chart that shows the visit count by date.
   # map = The geographical zoom-in of the map we want and returns two charts.
   def self.count_country_chart(short, map)    
-    countries, count = [], []
+    countries, counts = [], []
+    
+    cbcw = count_by_country_with(short) # [#<Visit @values={:country=>"XX", :count=>1}>]
+    puts "#######################################"
+    require 'pp'
+    p cbcw
+    puts "#######################################"
 
-    # Array of Visit objects
-    # [#<Visit @values={:country=>"China", :count=>1}>, #<Visit @values={:country=>"Germany", :count=>1}>]
-    count_by_country_with(short).each do |visit|
-      countries << visit.country
-      counts     << visit.count
+    cbcw.each do |visit|
+      countries << visit[:country]
+      counts     << visit[:count]
     end
+    
 
     chart = {}
     url_core_map   = "http://chart.apis.google.com/chart?chs=440x220&cht=t&chtm="
@@ -356,6 +343,8 @@ __END__
     Full source code
 
 @@info
+- if env['sinatra.error']
+  .error= env['sinatra.error']
 %h1.title Information
 .span-3 Original
 .span-21.last= @link.url.original
