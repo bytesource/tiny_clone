@@ -13,6 +13,7 @@ end
 # Application Flow
 # ======================
 
+
 configure do
   # If you want the logs displayed you have to do this before the call to setup
   # http://datamapper.org/getting-started.html
@@ -37,9 +38,10 @@ post '/' do
   # Therefore the following test will probably never detect any non-existing URL.
   raise "Invalid URL" unless uri.kind_of?(URI::HTTP) or uri.kind_of?(URI::HTTPS)
 
-  @link = Link.shorten(params[:original], custom)
+  link = Link.shorten(params[:original], custom)
 
-  haml :index
+  # http://stackoverflow.com/questions/9504094/sinatra-haml-how-to-pass-an-argument-when-calling-a-view-file
+  haml :index, :locals => {:link => link}
 end
 
 
@@ -56,7 +58,7 @@ get '/:short_url' do
   ip = get_remote_ip(env)
   
   # Create new Visit object (each Visit object will be one count)
-  visit = Visit.create(:ip => ip, :created_at => Time.now) # call after_create to set :country
+  visit = Visit.create(:ip => ip, :created_at => Time.now) # calls 'after_create' to set :country
   link.add_visit(visit) 
 
   # The redirect command in Sinatra normally issues a HTTP 302 response code.
@@ -118,7 +120,7 @@ class Link < Sequel::Model
 
     if custom  # not 'nil'
       # Check if the custom url is already stored in the database
-      raise 'Someone has already take this custom URL, sorry' unless Link.filter(:short => custom).first.nil?
+      flash[:error] = 'Someone has already take this custom URL, sorry' unless Link.filter(:short => custom).first.nil?
 
       raise 'This custom URL is not allowed due to profanity' if DIRTY_WORDS.include? custom
 
@@ -221,13 +223,14 @@ class Visit < Sequel::Model
   # Returns vertical bar chart that shows the visit count by date.
   def self.count_days_bar(short, num_of_days)
     visits = count_by_date_with(short, num_of_days) # <Date> => count hash
-    require 'pp'
     data, labels = [], []
 
     visits.each do |date, count|
       data   << count 
       labels << "#{date.day}/#{date.month}"
     end
+    
+    data = data.empty? ? [0] : data # Prevents error on #{data.sort.last+10} if data is empty.
     
     
     # FIXME: Avoid nil error on + if array is empty (= where link_short = '#{short}' returns no results)
@@ -245,10 +248,6 @@ class Visit < Sequel::Model
     countries, counts = [], []
     
     cbcw = count_by_country_with(short) # [#<Visit @values={:country=>"XX", :count=>1}>]
-    puts "#######################################"
-    require 'pp'
-    p cbcw
-    puts "#######################################"
 
     cbcw.each do |visit|
       countries << visit[:country]
@@ -313,16 +312,16 @@ __END__
 
 @@ index
 %h1.title TinyClone
-- unless @link.nil?
+- unless locals[:link].nil?
   .success
-    %code= @link.url.original
+    %code= link.url.original
     has been shortened to
-    %a{:href => "/#{@link.short}"}
-      = "http://tinyclone.saush.com/#{@link.short}"
+    %a{:href => "/#{locals[:link].short}"}
+      = "http://tinyclone.saush.com/#{locals[:link].short}"
     %br
     Go to
-    %a{:href => "/info/#{@link.short}"}
-      = "/tinyclone.saush.com/info/#{@link.short}"
+    %a{:href => "/info/#{locals[:link].short}"}
+      = "/tinyclone.saush.com/info/#{locals[:link].short}"
     to get more information about this link.
 - if env['sinatra.error']
   .error= env['sinatra.error']
@@ -346,23 +345,26 @@ __END__
 - if env['sinatra.error']
   .error= env['sinatra.error']
 %h1.title Information
-.span-3 Original
-.span-21.last= @link.url.original
-.span-3 Shortened
-.span-21.last
-  %a{:href => "/#{@link.short}"}
-    = "http://tinyclone.saush.com/#{@link.short}"
-.span-3 Date created
-.span-21.last= @link.created_at
-.span-3 Number of visits
-.span-21.last= "#{@link.visits.size.to_s} visits"
+- unless @link.nil?
+  .span-3 Original
+  .span-21.last= @link.url.original
+  .span-3 Shortened
+  .span-21.last
+    %a{:href => "/#{@link.short}"}
+      = "http://tinyclone.saush.com/#{@link.short}"
+  .span-3 Date created
+  .span-21.last= @link.created_at
+  .span-3 Number of visits
+  .span-21.last= "#{@link.visits.size.to_s} visits"
+  
+  %h2= "Number of visits in the past #{@num_of_days} days"
+  - %w(7 14 21 30).each do |num_days|
+    %a{:href => "/info/#{@link.short}/#{num_days}"}
+      ="#{num_days} days "
+    |
+  %p
+  .span-24.last
+    %img{:src => @count_days_bar}
+    %img{:src => @count_country_bar}
 
-%h2= "Number of visits in the past #{@num_of_days} days"
-- %w(7 14 21 30).each do |num_days|
-  %a{:href => "/info/#{@link.short}/#{num_days}"}
-    ="#{num_days} days "
-  |
-%p
-.span-24.last
-  %img{:src => @count_days_bar}
 
