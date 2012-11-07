@@ -1,10 +1,14 @@
 # Taken from ~/Desktop/temp/learning/Rack/rack_intro.rb
 
+# Don't forget to
+require 'my_app'
+# in config.ru
+
 # NOTE: In case the app does not show up on Heroku, check logs with 'heroku logs' from the 
 # root of the repository
 
 # NOTE: Don't forget to add
-# require 'bundler/setup'
+require 'bundler/setup'
 # to your sinatra app
 # source: http://sinatra-book.gittr.com/#hello_world_application
 

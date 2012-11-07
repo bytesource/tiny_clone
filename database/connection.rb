@@ -15,7 +15,7 @@ require 'sequel'
 #                     # :logger => Logger.new('log/db.log'),
 #                     :password =>'blablabla')
 
-DB = Sequel.connect(ENV['DATABASE_URL'] ||'postgres://postgres:@localhost/tinyclone')
+DB = Sequel.connect(ENV['DATABASE_URL'] ||'postgres://postgres:blablabla@localhost/tinyclone')
   
 # SQLite in-memory database used during testing                    
 # DB = Sequel.sqlite

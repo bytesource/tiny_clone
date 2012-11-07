@@ -12,6 +12,18 @@ require 'bundler/setup'
   require lib
 end
 
+# Hot Reloading ----------------
+
+# http://www.sinatrarb.com/contrib/reloader
+# gem install sinatra-contrib
+# require "sinatra/reloader" if development?
+# => no such file to load -- sinatra/reloader
+
+# Better: Use Shotgun:
+# gem install shotgun
+# shotgun -p 4567 tinyclone.rb
+# source: http://ruby.about.com/od/sinatra/a/sinatra5.htm
+
 # ======================
 # Application Flow
 # ======================
