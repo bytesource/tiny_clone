@@ -8,6 +8,9 @@
 # to your sinatra app
 # source: http://sinatra-book.gittr.com/#hello_world_application
 
+# NOTE: Heroku with Sequel
+# https://devcenter.heroku.com/articles/rack
+
 
 # DEPLOYING PURE RACK APPS TO HEROKU
 
