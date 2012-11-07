@@ -1,0 +1,95 @@
+# Taken from ~/Desktop/temp/learning/Rack/rack_intro.rb
+
+# DEPLOYING PURE RACK APPS TO HEROKU
+
+# rackheroku
+# -- my_app.rb
+# -- config.ru
+
+# $ gem install heroku
+
+
+# Upload your public key (do it only once):
+# $ heroku keys:add
+
+
+# $ gem install bundler
+
+
+# Install the required gems (if any) via bundler.
+# In the already open Git Bash shell for folder rackheroku type:
+
+# $ bundle init
+# => Writing new Gemfile to /home/sovonex/Desktop/rackheroku/Gemfile
+
+
+# Open Gemfile and edit it to look like this:
+source "http://rubygems.org"
+gem 'rack'
+
+
+# $ bundle check
+# => The Gemfile's dependencies are satisfied
+
+
+# $ bundle install
+# Using rack (1.2.2)
+# Using bundler (1.0.12)
+# Your bundle is complete! Use `bundle show [gemname]` to see where a bundled gem is installed.
+
+
+# This will ensure all gems specified on Gemfile, together with their dependencies,
+# are available for your application.
+# Running “bundle install” will also generate a “Gemfile.lock” file.
+# The Gemfile.lock ensures that your deployed versions of gems on Heroku
+# match the version installed locally on your development machine.
+
+
+# $ git init
+# $ git add .
+# $ git commit -m "Rack app first commit"
+
+
+# Let’s create our Rack app on Heroku. Type:
+
+# $ heroku create
+# Creating sharp-mountain-7687.... done
+# http://sharp-mountain-7687.heroku.com/ | git@heroku.com:sharp-mountain-7687.git
+# Git remote heroku added
+
+
+# http://sharp-mountain-7687.heroku.com
+# => Showing a standard welcome page, until you push your application up.
+
+
+# git@heroku.com:sharp-mountain-7687.git
+# The Git repository that you will push your code to.
+# Normally you would need to add this as a git remote;
+# the “heroku create” command has done this for you automatically.
+
+
+# Deploying our code to Heroku:
+
+# $ git push heroku master
+# -----> Heroku receiving push
+# -----> Ruby/Rack app detected
+# -----> Gemfile detected, running Bundler version 1.0.7
+#        Unresolved dependencies detected; Installing...
+# [...]
+
+
+# http://sharp-mountain-7687.heroku.com
+# => Hello Rack Participants
+
+
+# ------------------------------
+# Renaming our app
+
+# $ heroku rename luofeike
+# http://luofeike.heroku.com/ | git@heroku.com:luofeike.git
+# Git remote heroku updated
+
+# http://luofeike.heroku.com
+# => Hello Rack Participants
+
+# ------------------------------

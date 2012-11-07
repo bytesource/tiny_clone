@@ -9,6 +9,9 @@ run Sinatra::Application
 
 # (create git repository)
 
+# config.ru (don't forget to require your app)
+# bundle install (also creates )
+
 # heroku create smallurl
 # => Creating smallurl... done, stack is cedar
 #    http://smallurl.herokuapp.com/
