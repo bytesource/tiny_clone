@@ -1,6 +1,10 @@
 # Taken from ~/Desktop/temp/learning/Rack/rack_intro.rb
 
+# NOTE: In case the app does not show up on Heroku, check logs with 'heroku logs' from the 
+# root of the repository
+
 # DEPLOYING PURE RACK APPS TO HEROKU
+
 
 # rackheroku
 # -- my_app.rb

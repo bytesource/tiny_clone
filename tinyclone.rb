@@ -1,3 +1,6 @@
+# http://sinatra-book.gittr.com/#hello_world_application
+require 'bundler/setup'
+
 # Install missing gems
 
 # NOTE: Typo in original code: restclient instead of rest-client
