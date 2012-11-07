@@ -3,6 +3,7 @@ GEM
   specs:
     haml (3.1.4)
     mime-types (1.18)
+    pg (0.13.2)
     rack (1.4.1)
     rack-protection (1.2.0)
       rack
@@ -21,6 +22,7 @@ PLATFORMS
 
 DEPENDENCIES
   haml
+  pg
   rest-client
   sequel
   sinatra
