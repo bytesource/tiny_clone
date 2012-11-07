@@ -3,6 +3,12 @@
 # NOTE: In case the app does not show up on Heroku, check logs with 'heroku logs' from the 
 # root of the repository
 
+# NOTE: Don't forget to add
+# require 'bundler/setup'
+# to your sinatra app
+# source: http://sinatra-book.gittr.com/#hello_world_application
+
+
 # DEPLOYING PURE RACK APPS TO HEROKU
 
 
