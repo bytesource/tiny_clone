@@ -68,7 +68,7 @@ get '/:short_url' do
   # TODO: Do not allow http://example.com and http://www.example.com be treated as different addresses
   short_url = params[:short_url]
   return if short_url =~ /favicon/
-  link      = Link.filter(:short => short_url).first
+  link      = Link.filter(:short => short_url).first   # alternative: Link.first(:short => short_url)
   raise "Invalid short URL '#{short_url}'"  unless link
   ip = get_remote_ip(env)
   
@@ -99,7 +99,7 @@ end
  '/info/:short_url/:num_of_days', 
  '/info/:short_url/:num_of_days/:map'].each do |path|
   get path do
-    @link = Link.filter(:short => params[:short_url]).first
+    @link = Link.filter(:short => params[:short_url]).first # alternative: Link.first(:short => params[:short_url])
     raise 'This link has not yet been defined' unless @link
 
     @num_of_days    = (params[:num_of_days] || 15).to_i
@@ -127,7 +127,7 @@ class Link < Sequel::Model
 
   def self.shorten(original, custom=nil)
     # Check if the url is already stored in the database
-    url = Url.filter(:original => original).first
+    url = Url.filter(:original => original).first  # alternative: Url.first(:original => original)
     # If the original URL is already shortened, return the shortened link right away.
     return url.link if url
 

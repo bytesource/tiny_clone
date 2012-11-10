@@ -332,6 +332,18 @@ DB.transaction do
   # [#<Visit @values={:id=>2, :ip=>"23.34.56.44", :country=>"Germany", 
   #  :created_at=>2012-06-17 15:23:03 +0800, :link_short=>nil}>]
   
+  puts "Using 'first' -----------------------------------------"
+  # source: http://sequel.rubyforge.org/rdoc/files/doc/querying_rdoc.html (section "Using First")
+  
+  # If you just want the first record in the dataset, Sequel::Dataset#first is probably the most obvious method to use:
+  Visit.first
+  # select * from visits limit 1 
+  # => #<Visit @values={:id=>1, :ip=>"23.34.56.44", :country=>"Germany", 
+  #                     :created_at=>2012-06-17 15:23:03 +0800, :link_short=>nil}>
+  
+  # Any options you pass to first will be used as a filter:
+  Visit.first(:country => "Costa Rica")
+  
   p Visit.filter(:link_short => 'youtube', :ip => '23.34.56.46')  # a AND b
   # #<Sequel::Postgres::Dataset: 
   # "SELECT * FROM \"visits\" WHERE ((\"link_short\" = 'youtube') AND (\"ip\" = '23.34.56.46'))">
