@@ -103,9 +103,13 @@ DB.transaction do
   #  :created_at=>2012-06-15 16:17:03 +0800, :link_short=>"youtube"}>, 
   #  #<Visit @values={:id=>2, :ip=>"23.34.56.44", :country=>"Germany", 
   #  :created_at=>2012-06-15 16:17:03 +0800, :link_short=>"youtube"}>]
-  puts "all visits as dataset:"
+  puts "all visits as dataset:" 
+  # http://sequel.rubyforge.org/rdoc/files/doc/association_basics_rdoc.html => dataset_methods
   p link.visits_dataset
   # #<Sequel::SQLite::Dataset: "SELECT * FROM `visits` WHERE (`visits`.`link_short` = 'youtube')">
+  p link.visits_dataset.filter(:country => 'Germany')
+  # OR just provide a block:
+  p link.visits { |ds| ds.filter(:country => 'Germany')}
   puts "one url:"
   p link.url
   # #<Url @values={:id=>1, :original=>"http://www.sovonexxx.com", :link_short=>"youtube"}>
