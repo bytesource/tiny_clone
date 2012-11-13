@@ -74,8 +74,20 @@ DB.transaction do
   visit2 = Visit.create(:ip => '23.34.56.44', :country => 'Germany', :created_at => Time.now)
   visit3 = Visit.create(:ip => '23.34.56.46', :country => 'Germany', :created_at => Time.now)
   visit4 = {:ip => '23.34.56.46', :country => 'Holland', :created_at => Time.now} # Just a hash
-  [visit1, visit2, visit3, visit4].each { |v| link.add_visit(v) }
-  p
+  [visit1, visit2, visit3, visit4].each { |v| link.add_visit(v) } # (**)
+  p link.visits
+  
+  # (**)
+  puts "add_association(object_to_associate) (e.g. add_album) [one_to_many and many_to_many]"
+  # http://sequel.rubyforge.org/rdoc/files/doc/association_basics_rdoc.html
+  # The add_association method associates the passed object to the current object. 
+  # 1) one_to_many associations:
+  #    -- sets the foreign key of the associated object to the primary key value of the current object, and
+  #    -- SAVES the associated object. 
+  # 2) many_to_many associations:
+  #    -- inserts a row into the join table with the 
+  #    -- foreign keys set to the primary key values of the current and associated objects. 
+  # Note that the singular form of the association name is used in this method.
   
   
   # link.remove_visit(visit3)
