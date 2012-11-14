@@ -62,14 +62,6 @@ DB.transaction do
   # 2) Insert new URL row, setting both value and foreign key.
   #    INSERT INTO "urls" ("original", "link_short") VALUES ('http://www.sovonexxx.com', 'youtube') 
 
-  # NOTE on #association=
-  # -- many_to_one associations: does NOT save the current object  1)
-  # -- one_to_one associations:  does save the associated object.
-  #
-  # http://sequel.rubyforge.org/rdoc/files/doc/association_basics_rdoc.html
-  # --> Method Details
-  
-  
   visit1 = Visit.create(:ip => '23.34.56.43', :country => 'China', :created_at => Time.now)
   visit2 = Visit.create(:ip => '23.34.56.44', :country => 'Germany', :created_at => Time.now)
   visit3 = Visit.create(:ip => '23.34.56.46', :country => 'Germany', :created_at => Time.now)
@@ -82,12 +74,22 @@ DB.transaction do
   # http://sequel.rubyforge.org/rdoc/files/doc/association_basics_rdoc.html
   # The add_association method associates the passed object to the current object. 
   # 1) one_to_many associations:
-  #    -- sets the foreign key of the associated object to the primary key value of the current object, and
+  #    -- Sets the foreign key of the associated object to the primary key value of the current object, and
   #    -- SAVES the associated object. 
   # 2) many_to_many associations:
-  #    -- inserts a row into the join table with the 
+  #    -- Inserts a row into the join table with the 
   #    -- foreign keys set to the primary key values of the current and associated objects. 
   # Note that the singular form of the association name is used in this method.
+
+  puts "association=(object_to_associate) (e.g. artist=) [many_to_one and one_to_one]"
+  # The association= method sets up an association of the passed object to the current object. 
+  # 1) For many_to_one associations:
+  #    -- Sets the FOREIGN KEY for the CURRENT object to point to the associated object's primary key.
+  #       @album.artist = @artist  # album = current object, artist = associated object
+  #    -- DOES NOT SAVE the CURRENT object.
+  # 2) one_to_one associations:
+  #    -- Sets the FOREIGN KEY of the ASSOCIATED object to the primary key value of the current object.
+  #    -- Does SAVE the ASSOCIATED object.
   
   
   # link.remove_visit(visit3)
