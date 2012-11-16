@@ -64,9 +64,14 @@ class Visit < Sequel::Model
 
   def before_create
     self.created_at ||= Time.now
-    super
+    super # ($)
   end
 end
+
+# ($)
+# The one important thing to note here is the call to super inside the hook. 
+# Whenever you override one of Sequel::Model's methods, you should be calling super to get the default behavior. 
+
 
 # http://sequel.rubyforge.org/rdoc/classes/Sequel/Model/ClassMethods.html#method-i-unrestrict_primary_key
 Link.unrestrict_primary_key
