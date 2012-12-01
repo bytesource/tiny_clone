@@ -1,5 +1,22 @@
 # Taken from ~/Desktop/temp/learning/Rack/rack_intro.rb
 
+# NOTE:
+# The 'heroku' gem has been deprecated and replaced with the Heroku Toolbelt, 
+# download and install from https://toolbelt.heroku.com.
+
+# NOTE: Don't forget to commit all latest changes with 
+# git add .
+# git commit -m "....."
+# AFTER RUNNING:
+# bundle install
+# (to include/update the automatically generated Gemfile.lock)
+# Otherwise, if these latest changes include important stuff like adding
+# the Gemfile, etc., you will get the following error message on 
+# git push heroku master
+# -----> Heroku receiving push
+#  !     Heroku push rejected, no Cedar-supported app detected
+
+
 # Don't forget to
 require 'my_app'
 # in config.ru
